@@ -33,6 +33,7 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Air drawing | `air_draw.py` | Pinch to draw on the video, fist to clear |
 | Sign letters | `sign_language.py` | Poses → ASL fingerspelling letters, spelled into words |
 | ML classifier | `ml_classifier.py` | k-nearest-neighbours alternative to the rules (`--classifier ml`) |
+| Session report | `scripts/session_report.py` | History database → HTML page with charts |
 | Accuracy report | `scripts/evaluate.py` | Per-gesture / per-person accuracy and confusion on recorded hands |
 | Entry point | `app.py` | Connects the modules in pipeline order |
 
@@ -201,6 +202,18 @@ confusion table (e.g. "PEACE recognised as TWO FINGERS: 3 times") that shows whi
 thresholds in `config.py` to tune. Commit `tests/fixtures/recorded_hands.json` and the
 report: `pytest` then also checks that the rules get at least 80% of the recorded
 samples right.
+
+## Session report
+
+```powershell
+python scripts/session_report.py                    # all sessions
+python scripts/session_report.py --session latest   # just the last run
+```
+
+Writes `reports/session_report.html`: totals, the most used gestures (hand poses vs
+moving and two-hand gestures), which hands were used, gestures per session and a
+table of sessions. It is a single file with no internet needed; open it in any
+browser. It is built from your local history, so it isn't committed.
 
 ## Rules vs machine learning
 

@@ -9,8 +9,9 @@ venv/
 models/*.task
 models/*.part
 
-# Local gesture history and saved pictures
+# Local gesture history, saved pictures and reports made from them
 data/snapshots/
+reports/session_report*.html
 data/*.db
 data/*.db-wal
 data/*.db-shm
