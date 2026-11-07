@@ -40,10 +40,12 @@ KEY_DRAW = ord("d")
 KEY_SIGN = ord("a")
 KEY_SAVE = ord("s")
 KEY_TEACH = ord("t")
+KEY_FULLSCREEN = ord("w")
+KEY_ESC = 27
 
 HELP_LINES = (
     "q: quit   h: history   f: features   c: clear history   s: save picture",
-    "m: control mode   d: air draw   a: sign letters   t: teach a new pose",
+    "m: control mode   d: air draw   a: sign letters   t: teach a new pose   w: full screen",
 )
 
 
@@ -197,12 +199,47 @@ def feature_lines(features: list[HandFeatures], heart: HeartMeasurements | None 
     return lines
 
 
+def fit_to_window(frame: np.ndarray, size: tuple[int, int] | None) -> np.ndarray:
+    """Scale the frame to fill a (width, height) window without stretching it; black bars fill the rest."""
+    if not size:
+        return frame
+    width, height = size
+    h, w = frame.shape[:2]
+    if (w, h) == (width, height) or width <= 0 or height <= 0:
+        return frame
+    scale = min(width / w, height / h)
+    new_w, new_h = max(1, round(w * scale)), max(1, round(h * scale))
+    resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+    canvas = np.zeros((height, width, 3), frame.dtype)
+    x, y = (width - new_w) // 2, (height - new_h) // 2
+    canvas[y:y + new_h, x:x + new_w] = resized
+    return canvas
+
+
 class Interface:
-    def __init__(self, window_name: str = config.WINDOW_NAME):
+    def __init__(self, window_name: str = config.WINDOW_NAME, fullscreen: bool = False):
         self.window_name = window_name
         self.show_history = False
         self.show_features = False
-        cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE)
+        self.fullscreen = False
+        # A normal (resizable) window. Frames are still processed at the camera size;
+        # show() scales the finished picture to whatever size the window is.
+        cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(self.window_name, config.FRAME_WIDTH, config.FRAME_HEIGHT)
+        if fullscreen:
+            self.set_fullscreen(True)
+
+    def set_fullscreen(self, on: bool) -> None:
+        mode = cv2.WINDOW_FULLSCREEN if on else cv2.WINDOW_NORMAL
+        cv2.setWindowProperty(self.window_name, cv2.WND_PROP_FULLSCREEN, mode)
+        self.fullscreen = on
+
+    def window_size(self) -> tuple[int, int] | None:
+        try:
+            _, _, width, height = cv2.getWindowImageRect(self.window_name)
+        except cv2.error:
+            return None
+        return (width, height) if width > 0 and height > 0 else None
 
     def render(
         self,
@@ -243,8 +280,8 @@ class Interface:
         return frame
 
     def show(self, frame: np.ndarray) -> int:
-        """Display the frame and return the key pressed (-1 if none)."""
-        cv2.imshow(self.window_name, frame)
+        """Display the frame (scaled to the window) and return the key pressed (-1 if none)."""
+        cv2.imshow(self.window_name, fit_to_window(frame, self.window_size()))
         return self.poll()
 
     def poll(self) -> int:
@@ -253,7 +290,9 @@ class Interface:
         return -1 if key == -1 else key & 0xFF
 
     def handle_key(self, key: int) -> None:
-        if key == KEY_HISTORY:
+        if key == KEY_FULLSCREEN:
+            self.set_fullscreen(not self.fullscreen)
+        elif key == KEY_HISTORY:
             self.show_history = not self.show_history
         elif key == KEY_FEATURES:
             self.show_features = not self.show_features

@@ -105,6 +105,7 @@ python app.py --camera 1      # another webcam
 python app.py --no-history    # don't save to the database
 python app.py --control presentation   # start with gesture control on (or: media)
 python app.py --classifier ml           # recognise poses with the trained model instead of rules
+python app.py --fullscreen              # start full screen (w toggles)
 python app.py --benchmark               # time every pipeline stage
 python app.py --forget-taught           # delete poses taught with t
 ```
@@ -120,6 +121,7 @@ python app.py --forget-taught           # delete poses taught with t
 | `a` | Sign letters on/off |
 | `s` | Save a picture of the window to `data/snapshots/` |
 | `t` | Teach a new pose (type a name, Enter; Esc cancels) |
+| `w` | Full screen on/off (Esc also leaves full screen) |
 
 History is saved in `data/gesture_history.db`, one row each time a new gesture
 becomes stable (not once per frame).
@@ -407,6 +409,9 @@ live, then adjust:
 
 ## Troubleshooting
 
+- **Window too small**: press `w` for full screen, or drag the window's edge. The
+  picture is processed at 640x480 for speed and scaled up for display, keeping its
+  shape (black bars fill the sides on a wide screen).
 - **"Could not open camera"**: close other apps that use the webcam (Zoom, Teams,
   browser tabs), or try `--camera 1`.
 - **Left/Right swapped**: `MIRROR_FRAME` in `config.py` must stay `True`, because

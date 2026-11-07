@@ -33,7 +33,7 @@ from motion_analyzer import MotionAnalyzer, measure_heart
 from sign_language import SignSpeller
 from teach import Teacher, TaughtGestures, WithTaughtGestures
 from ui import (
-    KEY_CLEAR, KEY_CONTROL, KEY_DRAW, KEY_QUIT, KEY_SAVE, KEY_SIGN, KEY_TEACH,
+    KEY_CLEAR, KEY_CONTROL, KEY_DRAW, KEY_ESC, KEY_QUIT, KEY_SAVE, KEY_SIGN, KEY_TEACH,
     FPSCounter, HistoryView, Interface,
 )
 
@@ -76,6 +76,7 @@ def run(
     control: str | None = None,
     classifier: str = "rules",
     benchmark: bool = False,
+    fullscreen: bool = False,
 ) -> int:
     session_id = uuid.uuid4().hex[:8]
     camera = Camera(index=camera_index)
@@ -98,7 +99,7 @@ def run(
         speller = SignSpeller()
         mode = None  # None, "draw" or "sign"
         last_action, last_action_at = None, 0.0
-        ui = Interface()
+        ui = Interface(fullscreen=fullscreen)
         fps = FPSCounter()
         history = HistoryView()
         history_loaded_at = 0.0
@@ -183,6 +184,9 @@ def run(
                 if message:
                     last_action, last_action_at = message, now
                 continue
+            if key == KEY_ESC and ui.fullscreen:  # Esc leaves full screen first, then quits
+                ui.set_fullscreen(False)
+                continue
             if key in KEY_QUIT:
                 break
             if key == KEY_CLEAR and db is not None:
@@ -248,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:
         help="recognise poses with geometric rules or the trained k-NN model (default: %(default)s)",
     )
     parser.add_argument("--benchmark", action="store_true", help="time each pipeline stage; summary saved on exit")
+    parser.add_argument("--fullscreen", action="store_true", help="start full screen (w toggles it in the window)")
     parser.add_argument("--forget-taught", action="store_true", help="delete all poses taught with the t key, then run")
     args = parser.parse_args(argv)
     if args.forget_taught:
@@ -256,6 +261,7 @@ def main(argv: list[str] | None = None) -> int:
     return run(
         camera_index=args.camera, db_path=None if args.no_history else args.db,
         control=args.control, classifier=args.classifier, benchmark=args.benchmark,
+        fullscreen=args.fullscreen,
     )
 
 

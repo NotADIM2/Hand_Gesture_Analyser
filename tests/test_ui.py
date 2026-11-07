@@ -99,3 +99,20 @@ def test_control_mode_label_and_action_flash():
     interface.render(frame, [], [], [], 30.0, ui.HistoryView(), status=["CONTROL: PRESENTATION"],
                      action="NEXT SLIDE", sign_text="HELLO")
     assert frame.any()
+
+
+def test_fit_to_window_keeps_shape_with_black_bars():
+    frame = np.full((480, 640, 3), 200, np.uint8)
+    out = ui.fit_to_window(frame, (1920, 1080))
+    assert out.shape == (1080, 1920, 3)
+    # 640x480 scaled by 1080/480 = 2.25 -> 1440x1080, centred: 240 px bars each side
+    assert not out[:, :240].any() and not out[:, -240:].any()
+    assert (out[:, 240:1680] == 200).all()
+
+
+def test_fit_to_window_tall_window_and_no_size():
+    frame = np.full((480, 640, 3), 200, np.uint8)
+    out = ui.fit_to_window(frame, (640, 960))
+    assert out.shape == (960, 640, 3) and not out[:240].any() and (out[240:720] == 200).all()
+    assert ui.fit_to_window(frame, None) is frame
+    assert ui.fit_to_window(frame, (640, 480)) is frame
