@@ -1,7 +1,7 @@
 """Application entry point: connects the modules in pipeline order.
 
     Webcam -> OpenCV processing -> MediaPipe hand detection -> feature extraction
-    -> gesture analyzer -> UI result (+ SQLite gesture history)
+    -> gesture analyzer (+ motion analyzer) -> UI result (+ SQLite gesture history)
 
 Run:  python app.py            (see --help for options)
 """
@@ -17,6 +17,7 @@ from database import GestureDatabase
 from feature_extractor import extract_features
 from gesture_analyzer import GestureAnalyzer
 from hand_detector import HandDetector
+from motion_analyzer import MotionAnalyzer
 from ui import KEY_CLEAR, KEY_QUIT, FPSCounter, HistoryView, Interface
 
 
@@ -37,6 +38,8 @@ def run(camera_index: int = config.CAMERA_INDEX, db_path: Path | None = config.D
         detector = HandDetector()
         db = GestureDatabase(db_path) if db_path is not None else None
         analyzer = GestureAnalyzer()
+        motion = MotionAnalyzer()
+        recent_moves = []
         ui = Interface()
         fps = FPSCounter()
         history = HistoryView()
@@ -54,17 +57,25 @@ def run(camera_index: int = config.CAMERA_INDEX, db_path: Path | None = config.D
             hands = detector.detect(to_rgb(frame))
             features = [extract_features(h.world_landmarks, h.image_points, h.handedness) for h in hands]
             results = analyzer.analyze(features)
+            now = time.monotonic()
+            moves = motion.update(hands, frame.shape[1], now)
+            recent_moves = [m for m in recent_moves + moves if now - m.time < config.MOTION_DISPLAY_SECONDS]
 
             if db is not None:
                 for result in results:
                     if result.newly_stable:
                         db.insert(result.gesture, result.hand, session_id)
+                for move in moves:
+                    db.insert(move.gesture, move.hand, session_id)
                 # Only query history while its panel is open, and at most a few times a second.
                 if ui.show_history and time.monotonic() - history_loaded_at > config.HISTORY_REFRESH_SECONDS:
                     history = load_history(db, session_id)
                     history_loaded_at = time.monotonic()
 
-            ui.render(frame, hands, results, features, fps.tick(), history if db else None)
+            ui.render(
+                frame, hands, results, features, fps.tick(), history if db else None,
+                moves=recent_moves, trails=motion.trails(frame.shape[1]),
+            )
             key = ui.show(frame)
             if key in KEY_QUIT or ui.closed:
                 break

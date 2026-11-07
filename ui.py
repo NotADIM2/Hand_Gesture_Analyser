@@ -1,7 +1,8 @@
 """Display and user interaction (architecture step: RESULT / UI).
 
-Draws onto OpenCV frames: hand skeletons, the result panel, an optional gesture
-history panel and an optional feature panel for tuning thresholds. This module only
+Draws onto OpenCV frames: hand skeletons, palm trails, the result panel, a banner for
+moving and two-hand gestures, an optional gesture history panel and an optional
+feature panel for tuning thresholds. This module only
 draws what it is given; it never calls the detector or the database itself.
 """
 import time
@@ -14,6 +15,7 @@ import config
 from feature_extractor import FINGER_NAMES, HandFeatures
 from gesture_analyzer import STABLE, UNCERTAIN, GestureResult
 from hand_detector import DetectedHand
+from motion_analyzer import MotionEvent
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 WHITE = (255, 255, 255)
@@ -23,6 +25,7 @@ YELLOW = (0, 215, 255)
 ORANGE = (0, 140, 255)
 RED = (60, 60, 230)
 SKELETON = (255, 200, 0)
+TRAIL = (255, 120, 200)
 JOINT = (0, 0, 255)
 
 STATUS_COLOURS = {STABLE: GREEN, UNCERTAIN: YELLOW}
@@ -90,6 +93,18 @@ def draw_panel(frame: np.ndarray, lines: list[tuple[str, tuple]], origin: tuple[
     return width, height
 
 
+def move_text(move: MotionEvent) -> str:
+    return f"{move.gesture} ({move.hand.upper()} HAND{'S' if move.hand == 'Both' else ''})"
+
+
+def draw_banner(frame: np.ndarray, text: str, colour=GREEN, scale: float = 0.9) -> None:
+    """Large outlined text, centred just above the help line."""
+    (w, _), _ = cv2.getTextSize(text, FONT, scale, 2)
+    origin = (max(0, (frame.shape[1] - w) // 2), frame.shape[0] - 45)
+    cv2.putText(frame, text, origin, FONT, scale, (0, 0, 0), 5, cv2.LINE_AA)
+    cv2.putText(frame, text, origin, FONT, scale, colour, 2, cv2.LINE_AA)
+
+
 def result_lines(hand_count: int, results: list[GestureResult]) -> list[tuple[str, tuple]]:
     lines = [(f"Hands detected: {hand_count}", WHITE)]
     if not results:
@@ -149,13 +164,19 @@ class Interface:
         features: list[HandFeatures],
         fps: float,
         history: HistoryView | None = None,
+        moves: list[MotionEvent] = (),
+        trails: list[np.ndarray] = (),
     ) -> np.ndarray:
+        for trail in trails:
+            cv2.polylines(frame, [trail.astype(np.int32)], False, TRAIL, 2, cv2.LINE_AA)
         for hand, result in zip(hands, results):
             colour = STATUS_COLOURS.get(result.status, ORANGE)
             draw_hand(frame, hand, f"{result.hand.upper()}: {result.gesture}", colour)
 
         draw_panel(frame, result_lines(len(hands), results), (10, 10), min_width=260)
         draw_panel(frame, [(f"FPS: {fps:.0f}", GREEN)], (frame.shape[1], 10))
+        if moves:
+            draw_banner(frame, move_text(moves[-1]))
         if self.show_history and history is not None:
             draw_panel(frame, history_lines(history), (frame.shape[1], 50), scale=0.5)
         if self.show_features and features:

@@ -63,3 +63,17 @@ def test_fps_counter():
     counter = ui.FPSCounter()
     counter.tick()
     assert counter.tick() > 0
+
+
+def test_draw_moving_gesture_and_trail():
+    from motion_analyzer import MotionEvent
+
+    frame = np.zeros((480, 640, 3), np.uint8)
+    interface = ui.Interface.__new__(ui.Interface)
+    interface.show_history = interface.show_features = False
+    moves = [MotionEvent("SWIPE LEFT", "Right", 0.0), MotionEvent("HEART", "Both", 0.1)]
+    trail = np.array([[100.0, 200.0], [150.0, 210.0], [200.0, 220.0]])
+    interface.render(frame, [], [], [], 30.0, moves=moves, trails=[trail])
+    assert ui.move_text(moves[-1]) == "HEART (BOTH HANDS)"
+    assert ui.move_text(moves[0]) == "SWIPE LEFT (RIGHT HAND)"
+    assert frame.any()

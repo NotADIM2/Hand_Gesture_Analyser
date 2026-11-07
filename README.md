@@ -1,14 +1,15 @@
 # Hand_Gesture_Analyser
 
 Team_Project. A real-time hand gesture analyser: it reads your webcam, finds your
-hands with MediaPipe, recognises 17 gestures with geometric rules, and keeps a
-gesture history in SQLite.
+hands with MediaPipe, recognises 17 hand poses plus 8 moving and two-hand
+gestures (25 in total) with geometric rules, and keeps a gesture history in SQLite.
 
 ## Architecture
 
 ```
 USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
-     → FEATURE EXTRACTION → GESTURE ANALYZER → RESULT / UI + GESTURE HISTORY (SQLite)
+     → FEATURE EXTRACTION → GESTURE ANALYZER ─┐
+                          → MOTION ANALYZER ──┴→ RESULT / UI + GESTURE HISTORY (SQLite)
 ```
 
 | Step | Module | Does |
@@ -18,6 +19,7 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Hand detection | `hand_detector.py` | MediaPipe Hand Landmarker: up to 2 hands, 21 landmarks, Left/Right |
 | Feature extraction | `feature_extractor.py` | Landmarks → extended fingers, joint angles, distances, directions |
 | Gesture analyzer | `gesture_analyzer.py` | Features → gesture (rule-based), smoothed over recent frames |
+| Motion analyzer | `motion_analyzer.py` | Palm paths over time → swipes, wave, circle; both hands → clap, heart |
 | Gesture history | `database.py` | SQLite, written from a background thread |
 | Result / UI | `ui.py` | Skeleton, result panel, history and feature panels, keys |
 | Entry point | `app.py` | Connects the modules in pipeline order |
@@ -79,6 +81,20 @@ becomes stable (not once per frame).
 
 Rules are checked in this order. Anything else is shown as UNKNOWN.
 
+### Moving and two-hand gestures
+
+These follow the palm over the last second or two, so they work with any hand shape.
+Each one appears in a banner at the bottom of the window, is saved to the history once,
+and the pink line on screen shows the path the palm has taken.
+
+| Gesture | How |
+|---|---|
+| SWIPE LEFT / RIGHT / UP / DOWN | Move your hand quickly and fairly straight across at least a quarter of the frame |
+| WAVE | Move your hand left and right about twice, quickly |
+| CIRCLE | Draw a full circle in the air with your hand |
+| CLAP | Bring both hands together from well apart |
+| HEART | Both hands: index tips touching at the top, thumb tips touching below, wrists apart; hold it briefly |
+
 ### Why no confidence percentage?
 
 Rules don't produce a probability, so the UI doesn't invent one. Instead it shows
@@ -126,6 +142,10 @@ live, then adjust:
 - `PINCH_MIN_INDEX_ANGLE`: lower it if a Pinch shows as Fist; raise it if a Fist shows as Pinch.
 - `PEACE_MIN_SPREAD`: the angle that separates Peace from Two Fingers.
 - `STABILITY_WINDOW` / `STABILITY_MIN_AGREEMENT`: smoothing.
+- `SWIPE_MIN_DISTANCE` / `SWIPE_MAX_SECONDS`: lower the distance or allow more time if
+  swipes are missed; the opposite if ordinary movement triggers them.
+- `WAVE_MIN_SWINGS` / `WAVE_MIN_AMPLITUDE`, `CIRCLE_MIN_TURN`: how much waving or circling counts.
+- `CLAP_START_DISTANCE`, `HEART_TOUCH_DISTANCE`: two-hand gestures, in palm sizes.
 
 ## Troubleshooting
 

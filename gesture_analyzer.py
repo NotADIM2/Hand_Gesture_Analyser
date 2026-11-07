@@ -140,7 +140,7 @@ class GestureAnalyzer:
 
     def analyze(self, hands: list[HandFeatures]) -> list[GestureResult]:
         """Classify every hand in the current frame; call once per frame."""
-        keys = _track_keys(hands)
+        keys = track_keys(hands)
         results = [self._update(key, features) for key, features in zip(keys, hands)]
         # Forget hands that have been gone longer than the grace period, so they
         # start fresh when they return.
@@ -185,7 +185,8 @@ class GestureAnalyzer:
         )
 
 
-def _track_keys(hands: list[HandFeatures]) -> list[str]:
+def track_keys(hands: list) -> list[str]:
+    """A stable key per hand (anything with a `handedness`), used to follow it between frames."""
     # Hands are tracked by Left/Right. If MediaPipe labels both hands the same,
     # number the duplicates so their histories don't mix.
     seen: Counter = Counter()

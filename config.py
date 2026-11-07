@@ -56,10 +56,44 @@ STABILITY_MIN_AGREEMENT = 7
 # (~0.5 s at 30 FPS) so a brief dropout doesn't log the same gesture again.
 HAND_LOST_GRACE_FRAMES = 15
 
+# --- Moving and two-hand gestures (motion_analyzer.py) -----------------------
+# One-hand positions are in frame widths (1.0 = the full width of the frame).
+MOTION_HISTORY_SECONDS = 2.0    # how much of each hand's path is kept
+MOTION_COOLDOWN_SECONDS = 0.8   # after a moving gesture, ignore that hand this long
+# A jump bigger than this between two frames is a tracking glitch, not movement.
+MOTION_MAX_JUMP = 0.2
+# Swipe: at least this far within this time, fairly straight, in one main direction.
+SWIPE_MAX_SECONDS = 0.6
+SWIPE_MIN_DISTANCE = 0.25
+SWIPE_MAX_PATH_RATIO = 1.3      # path length / straight-line distance
+SWIPE_MIN_DOMINANCE = 1.5       # main direction vs sideways drift
+# Wave: this many left/right swings of at least this size within this time.
+WAVE_SECONDS = 1.5
+WAVE_MIN_AMPLITUDE = 0.04
+WAVE_MIN_SWINGS = 4
+# Circle: the palm turns at least this many degrees round a path of at least this
+# radius within this time. Roundness: closest point / average distance from the centre.
+CIRCLE_SECONDS = 2.0
+CIRCLE_MIN_RADIUS = 0.04
+CIRCLE_MIN_ROUNDNESS = 0.4
+CIRCLE_MIN_TURN = 330.0
+# Two-hand distances are in palm sizes (wrist to middle knuckle on screen).
+# Clap: palm centres at least CLAP_START_DISTANCE apart, then within
+# CLAP_TOUCH_DISTANCE, all within CLAP_SECONDS.
+CLAP_SECONDS = 0.6
+CLAP_START_DISTANCE = 2.0
+CLAP_TOUCH_DISTANCE = 0.8
+# Heart: index tips touching and thumb tips touching, wrists apart, held a few frames.
+HEART_TOUCH_DISTANCE = 0.35
+HEART_MIN_WRIST_GAP = 0.8
+HEART_HOLD_FRAMES = 5
+
 # --- Interface (ui.py) -------------------------------------------------------
 WINDOW_NAME = "Hand Gesture Analyser"
 HISTORY_REFRESH_SECONDS = 0.5
 HISTORY_RECENT_ROWS = 5
+# How long a moving or two-hand gesture stays on screen after it happens.
+MOTION_DISPLAY_SECONDS = 1.5
 
 # The 21 MediaPipe hand landmarks joined into a skeleton (landmark index pairs).
 HAND_CONNECTIONS = (
