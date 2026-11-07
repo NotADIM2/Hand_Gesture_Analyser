@@ -113,10 +113,39 @@ CONTROL_PROFILES = {
         "FIST": ("MUTE", "media_volume_mute"),
     },
 }
+# Gesture password: these poses, in order, unlock control mode after it is switched on.
+# Each must follow the previous within PASSWORD_STEP_SECONDS. Use () for no password.
+CONTROL_PASSWORD = ("FIST", "PEACE", "THUMBS UP")
+PASSWORD_STEP_SECONDS = 4.0
 # Minimum time between two actions, so one gesture can't press a key twice.
 CONTROL_COOLDOWN_SECONDS = 0.5
 # How often a held pose repeats an action marked to repeat (e.g. volume).
 CONTROL_REPEAT_SECONDS = 0.4
+
+# --- Air drawing (air_draw.py) -----------------------------------------------
+# The pen goes down when thumb and index tips are closer than DRAW_TOUCH_RATIO
+# (fraction of palm size) and lifts only when they open past DRAW_LIFT_RATIO.
+DRAW_TOUCH_RATIO = 0.35
+DRAW_LIFT_RATIO = 0.5
+DRAW_SMOOTHING = 0.5           # 0 = raw fingertip, closer to 1 = smoother but laggier
+DRAW_COLOUR = (255, 255, 0)    # BGR: cyan
+DRAW_THICKNESS = 6
+SNAPSHOT_DIR = BASE_DIR / "data" / "snapshots"
+
+# --- Sign letters (sign_language.py) -----------------------------------------
+# Poses that match American Sign Language (ASL) fingerspelling letters.
+SIGN_LETTERS = {
+    "FOUR FINGERS": "B",
+    "ONE FINGER": "D",
+    "OK SIGN": "F",
+    "L SIGN": "L",
+    "FIST": "S",
+    "TWO FINGERS": "U",
+    "PEACE": "V",
+    "THREE FINGERS": "W",
+    "CALL ME": "Y",
+}
+SIGN_MAX_LENGTH = 24
 
 # --- Interface (ui.py) -------------------------------------------------------
 WINDOW_NAME = "Hand Gesture Analyser"

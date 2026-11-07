@@ -1,8 +1,9 @@
 """Display and user interaction (architecture step: RESULT / UI).
 
 Draws onto OpenCV frames: hand skeletons, palm trails, the result panel, a banner for
-moving and two-hand gestures, the control mode and its last action, an optional
-gesture history panel and an optional feature panel for tuning thresholds. This module only
+moving and two-hand gestures, the active modes (control, air draw, sign letters) and
+their output, an optional gesture history panel and an optional feature panel for
+tuning thresholds. This module only
 draws what it is given; it never calls the detector or the database itself.
 """
 import time
@@ -35,6 +36,14 @@ KEY_HISTORY = ord("h")
 KEY_FEATURES = ord("f")
 KEY_CLEAR = ord("c")
 KEY_CONTROL = ord("m")
+KEY_DRAW = ord("d")
+KEY_SIGN = ord("a")
+KEY_SAVE = ord("s")
+
+HELP_LINES = (
+    "q: quit   h: history   f: features   c: clear history   s: save picture",
+    "m: control mode   d: air draw   a: sign letters",
+)
 
 
 @dataclass
@@ -98,7 +107,7 @@ def move_text(move: MotionEvent) -> str:
     return f"{move.gesture} ({move.hand.upper()} HAND{'S' if move.hand == 'Both' else ''})"
 
 
-def draw_banner(frame: np.ndarray, text: str, colour=GREEN, scale: float = 1.1, lift: int = 45) -> None:
+def draw_banner(frame: np.ndarray, text: str, colour=GREEN, scale: float = 1.1, lift: int = 65) -> None:
     """Large outlined text, centred `lift` pixels above the bottom of the frame."""
     (w, _), _ = cv2.getTextSize(text, FONT, scale, 2)
     origin = (max(0, (frame.shape[1] - w) // 2), frame.shape[0] - lift)
@@ -194,8 +203,9 @@ class Interface:
         trails: list[np.ndarray] = (),
         last_move: MotionEvent | None = None,
         heart: HeartMeasurements | None = None,
-        control: str | None = None,
+        status: list[str] = (),
         action: str | None = None,
+        sign_text: str | None = None,
     ) -> np.ndarray:
         for hand, result in zip(hands, results):
             colour = STATUS_COLOURS.get(result.status, ORANGE)
@@ -203,20 +213,20 @@ class Interface:
         for trail in trails:
             draw_trail(frame, trail)
 
-        draw_panel(frame, result_lines(len(hands), results, last_move), (10, 10), min_width=260)
+        _, result_height = draw_panel(frame, result_lines(len(hands), results, last_move), (10, 10), min_width=260)
         draw_panel(frame, [(f"FPS: {fps:.0f}", GREEN)], (frame.shape[1], 10))
-        if control:
-            draw_panel(frame, [(f"CONTROL: {control.upper()}", ORANGE)], (frame.shape[1], 50))
+        draw_panel(frame, [(line, ORANGE) for line in status], (10, 10 + result_height + 6), scale=0.5)
         if moves:
             draw_banner(frame, move_text(moves[-1]))
         if action:
-            draw_banner(frame, f"> {action}", ORANGE, lift=90)
+            draw_banner(frame, f"> {action}", ORANGE, lift=110)
+        if sign_text is not None:
+            draw_banner(frame, f"{sign_text}_", WHITE, scale=1.3, lift=155)
         if self.show_history and history is not None:
-            draw_panel(frame, history_lines(history), (frame.shape[1], 90 if control else 50), scale=0.5)
+            draw_panel(frame, history_lines(history), (frame.shape[1], 50), scale=0.5)
         if self.show_features and features:
-            draw_panel(frame, feature_lines(features, heart), (10, frame.shape[0] - 180), scale=0.45)
-        help_text = "q: quit   h: history   f: features   c: clear history   m: control mode"
-        draw_panel(frame, [(help_text, GREY)], (10, frame.shape[0]), scale=0.45)
+            draw_panel(frame, feature_lines(features, heart), (10, frame.shape[0] - 200), scale=0.45)
+        draw_panel(frame, [(line, GREY) for line in HELP_LINES], (10, frame.shape[0]), scale=0.45)
         return frame
 
     def show(self, frame: np.ndarray) -> int:

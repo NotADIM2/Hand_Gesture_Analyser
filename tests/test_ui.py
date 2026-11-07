@@ -96,5 +96,6 @@ def test_control_mode_label_and_action_flash():
     interface = ui.Interface.__new__(ui.Interface)
     interface.show_history = True
     interface.show_features = False
-    interface.render(frame, [], [], [], 30.0, ui.HistoryView(), control="presentation", action="NEXT SLIDE")
+    interface.render(frame, [], [], [], 30.0, ui.HistoryView(), status=["CONTROL: PRESENTATION"],
+                     action="NEXT SLIDE", sign_text="HELLO")
     assert frame.any()

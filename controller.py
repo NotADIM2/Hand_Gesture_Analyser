@@ -127,3 +127,47 @@ class GestureController:
         self._keyboard.press(action.key)
         self._last_action_at = now
         return action
+
+
+class GesturePassword:
+    """A sequence of hand poses that unlocks control mode, e.g. FIST -> PEACE -> THUMBS UP.
+
+    Each pose counts once, when it becomes STABLE, and must follow the previous one
+    within config.PASSWORD_STEP_SECONDS. A wrong pose starts the sequence again.
+    An empty sequence means no password: always unlocked.
+    """
+
+    def __init__(self, sequence: Iterable[str] = config.CONTROL_PASSWORD,
+                 step_seconds: float = config.PASSWORD_STEP_SECONDS):
+        self.sequence = tuple(sequence)
+        self.step_seconds = step_seconds
+        self.progress = 0
+        self._last_step_at = float("-inf")
+        self.unlocked = not self.sequence
+
+    def lock(self) -> None:
+        self.progress = 0
+        self.unlocked = not self.sequence
+
+    def update(self, results: Iterable[GestureResult], now: float) -> bool:
+        """Feed this frame's poses; returns True on the frame the password is completed."""
+        if self.unlocked:
+            return False
+        if self.progress and now - self._last_step_at > self.step_seconds:
+            self.progress = 0
+        for result in results:
+            if not result.newly_stable:
+                continue
+            gesture = result.gesture
+            if gesture == self.sequence[self.progress]:
+                self.progress += 1
+                self._last_step_at = now
+            elif self.progress and gesture == self.sequence[self.progress - 1]:
+                continue  # the step just entered, re-detected after a flicker
+            else:
+                self.progress = 1 if gesture == self.sequence[0] else 0
+                self._last_step_at = now
+            if self.progress == len(self.sequence):
+                self.unlocked = True
+                return True
+        return False

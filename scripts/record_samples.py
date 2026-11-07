@@ -6,8 +6,11 @@ tests/test_gesture_analyzer.py checks automatically.
 
 Keys:  1-9, 0, a-g = save sample for that gesture (shown on screen)   q = quit
 
-Usage:  python scripts/record_samples.py
+Usage:  python scripts/record_samples.py --person <your name>
+
+Then measure accuracy with:  python scripts/evaluate.py
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -34,7 +37,10 @@ def load() -> dict:
     return {"description": "Real landmarks recorded with scripts/record_samples.py", "samples": []}
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Record labelled hand samples from the webcam.")
+    parser.add_argument("--person", default="unknown", help="who is recording (for per-person accuracy)")
+    args = parser.parse_args(argv)
     data = load()
     classifier = RuleBasedClassifier()
     keys = {ord(key): name for key, name in zip(SAVE_KEYS, GESTURES)}
@@ -60,6 +66,7 @@ def main() -> None:
                 hand = hands[0]
                 data["samples"].append({
                     "source": "recorded",
+                    "person": args.person,
                     "gesture": keys[key],
                     "handedness": hand.handedness,
                     "world_landmarks": hand.world_landmarks.round(5).tolist(),

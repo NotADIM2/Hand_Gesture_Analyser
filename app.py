@@ -4,23 +4,31 @@
     -> gesture analyzer (+ motion analyzer) -> controller (optional key presses)
     -> UI result (+ SQLite gesture history)
 
+Extra modes, switched with keys in the window: air drawing (d) and sign letters (a).
+While one is on, gesture control is paused so the same gestures don't press keys.
+
 Run:  python app.py            (see --help for options)
 """
 import argparse
 import sys
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 
+import cv2
+
 import config
+from air_draw import AirCanvas
 from camera import Camera, CameraError, to_rgb
-from controller import GestureController
+from controller import GestureController, GesturePassword
 from database import GestureDatabase
 from feature_extractor import extract_features
 from gesture_analyzer import GestureAnalyzer
 from hand_detector import HandDetector
 from motion_analyzer import MotionAnalyzer, measure_heart
-from ui import KEY_CLEAR, KEY_CONTROL, KEY_QUIT, FPSCounter, HistoryView, Interface
+from sign_language import SignSpeller
+from ui import KEY_CLEAR, KEY_CONTROL, KEY_DRAW, KEY_QUIT, KEY_SAVE, KEY_SIGN, FPSCounter, HistoryView, Interface
 
 
 def load_history(db: GestureDatabase, session_id: str) -> HistoryView:
@@ -29,6 +37,30 @@ def load_history(db: GestureDatabase, session_id: str) -> HistoryView:
         recent=db.get_history(limit=config.HISTORY_RECENT_ROWS),
         all_time_total=db.total(),
     )
+
+
+def status_lines(controller: GestureController, password: GesturePassword, mode: str | None) -> list[str]:
+    lines = []
+    if controller.enabled:
+        if mode:
+            state = "PAUSED"
+        elif password.unlocked:
+            state = "ON"
+        else:
+            state = f"LOCKED {password.progress}/{len(password.sequence)}, show password"
+        lines.append(f"CONTROL: {controller.profile.upper()} ({state})")
+    if mode == "draw":
+        lines.append("AIR DRAW: pinch to draw, fist clears")
+    if mode == "sign":
+        lines.append("SIGN LETTERS: palm = space, swipe left = delete, wave = clear")
+    return lines
+
+
+def save_snapshot(frame) -> Path:
+    config.SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    path = config.SNAPSHOT_DIR / f"gesture_{datetime.now():%Y%m%d_%H%M%S}.png"
+    cv2.imwrite(str(path), frame)
+    return path
 
 
 def run(
@@ -48,6 +80,10 @@ def run(
         recent_moves = []
         last_move = None
         controller = GestureController(control)
+        password = GesturePassword()
+        canvas = AirCanvas()
+        speller = SignSpeller()
+        mode = None  # None, "draw" or "sign"
         last_action, last_action_at = None, 0.0
         ui = Interface()
         fps = FPSCounter()
@@ -55,7 +91,7 @@ def run(
         history_loaded_at = 0.0
         print(f"Running (session {session_id}). Press q in the video window to quit.")
         if controller.enabled:
-            print(f"Control mode: {controller.profile}. Click the window you want to control.")
+            print(f"Control mode: {controller.profile}. Show the gesture password, then click the window to control.")
 
         while True:
             frame = camera.read()
@@ -73,8 +109,19 @@ def run(
             recent_moves = [m for m in recent_moves + moves if now - m.time < config.MOTION_DISPLAY_SECONDS]
             if moves:
                 last_move = moves[-1]
-            for action in controller.update(results, moves, now):
-                last_action, last_action_at = action.label, now
+            if mode == "draw":
+                canvas.update(frame.shape, hands, features, results)
+                canvas.overlay(frame)
+            elif mode == "sign":
+                change = speller.update(results, moves)
+                if change:
+                    last_action, last_action_at = change, now
+            elif controller.enabled and not password.unlocked:
+                if password.update(results, now):
+                    last_action, last_action_at = "CONTROL UNLOCKED", now
+            else:
+                for action in controller.update(results, moves, now):
+                    last_action, last_action_at = action.label, now
 
             if db is not None:
                 for result in results:
@@ -91,8 +138,9 @@ def run(
                 frame, hands, results, features, fps.tick(), history if db else None,
                 moves=recent_moves, trails=motion.trails(frame.shape[1]), last_move=last_move,
                 heart=measure_heart(*hands) if len(hands) == 2 and ui.show_features else None,
-                control=controller.profile,
+                status=status_lines(controller, password, mode),
                 action=last_action if now - last_action_at < config.CONTROL_DISPLAY_SECONDS else None,
+                sign_text=speller.text if mode == "sign" else None,
             )
             key = ui.show(frame)
             if key in KEY_QUIT or ui.closed:
@@ -107,7 +155,16 @@ def run(
                     controller.set_profile(None)
                     print(f"Control mode unavailable: {exc}", file=sys.stderr)
                 else:
-                    print(f"Control mode: {profile or 'off'}" + (". Click the window you want to control." if profile else ""))
+                    if profile is None:
+                        password.lock()
+                    print(f"Control mode: {profile or 'off'}")
+            if key in (KEY_DRAW, KEY_SIGN):
+                wanted = "draw" if key == KEY_DRAW else "sign"
+                mode = None if mode == wanted else wanted
+                canvas.clear()
+                speller.clear()
+            if key == KEY_SAVE:
+                print(f"Saved {save_snapshot(frame)}")
             ui.handle_key(key)
         return 0
 

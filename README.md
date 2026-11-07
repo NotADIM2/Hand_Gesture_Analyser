@@ -3,7 +3,9 @@
 Team_Project. A real-time hand gesture analyser: it reads your webcam, finds your
 hands with MediaPipe, recognises 17 hand poses plus 8 moving and two-hand
 gestures (25 in total) with geometric rules, keeps a gesture history in SQLite, and
-can control PowerPoint or your music with gestures.
+can control PowerPoint or your music with gestures (behind a gesture password). It
+can also draw in the air, spell words with sign-language letters, and measure its
+own accuracy on your team's recorded hands.
 
 ## Architecture
 
@@ -25,6 +27,9 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Controller | `controller.py` | Gestures → key presses, using a profile from `config.py`; off by default |
 | Gesture history | `database.py` | SQLite, written from a background thread |
 | Result / UI | `ui.py` | Skeleton, result panel, history and feature panels, keys |
+| Air drawing | `air_draw.py` | Pinch to draw on the video, fist to clear |
+| Sign letters | `sign_language.py` | Poses → ASL fingerspelling letters, spelled into words |
+| Accuracy report | `scripts/evaluate.py` | Per-gesture / per-person accuracy and confusion on recorded hands |
 | Entry point | `app.py` | Connects the modules in pipeline order |
 
 Feature extraction only sees landmark arrays (never frames), and the analyzer only
@@ -58,6 +63,9 @@ python app.py --control presentation   # start with gesture control on (or: medi
 | `f` | Show/hide the feature panel (for tuning) |
 | `c` | Clear all saved history |
 | `m` | Gesture control: off → presentation → media → off |
+| `d` | Air drawing on/off |
+| `a` | Sign letters on/off |
+| `s` | Save a picture of the window to `data/snapshots/` |
 
 History is saved in `data/gesture_history.db`, one row each time a new gesture
 becomes stable (not once per frame).
@@ -126,10 +134,16 @@ it is on, plus a flash such as `> NEXT SLIDE` every time it presses a key.
 
 Open Palm is deliberately not used: it's how your hand looks just before a swipe.
 
+**Gesture password.** Control starts **locked**. Show **FIST → PEACE → THUMBS UP**,
+each within 4 seconds of the last, to unlock it; the window shows the progress
+(`LOCKED 1/3`, `2/3`, then `ON`). A wrong pose starts again. Switching control off
+with `m` locks it again. Change or remove the password with `CONTROL_PASSWORD` in
+`config.py` (`()` = no password).
+
 **Controlling a presentation:**
 
 1. Open your PowerPoint file.
-2. Run `python app.py --control presentation`.
+2. Run `python app.py --control presentation` and show the password.
 3. **Click on the PowerPoint window.** Key presses go to whichever window is in
    front; the gesture window keeps watching in the background.
 4. Thumbs up to start the slideshow, swipe left/right to change slides, thumbs down
@@ -141,6 +155,76 @@ Profiles are in `CONTROL_PROFILES` in `config.py`: each gesture maps to a label,
 (a [pynput key name](https://pynput.readthedocs.io/en/latest/keyboard.html#pynput.keyboard.Key)
 such as `right` or `media_play_pause`, or a single character), and optionally `True`
 to repeat while held. Add your own profile there and it appears in the `m` cycle.
+
+## Air drawing
+
+Press `d`. Touch your thumb and index fingertips together to put the pen down, move
+to draw, open them to lift the pen. Make a fist to clear. Press `s` to save the
+picture. Gesture control is paused while drawing.
+
+## Sign letters
+
+Press `a`. These poses match letters of the American Sign Language (ASL)
+fingerspelling alphabet, and each one is added to the word on screen when it becomes
+stable:
+
+| Pose | Letter | | Pose | Letter |
+|---|---|---|---|---|
+| FOUR FINGERS | B | | TWO FINGERS | U |
+| ONE FINGER | D | | PEACE | V |
+| OK SIGN | F | | THREE FINGERS | W |
+| L SIGN | L | | CALL ME | Y |
+| FIST | S | | | |
+
+Open palm adds a space, swipe left deletes the last letter, wave clears everything.
+To repeat a letter, change pose (or lower your hand) and show it again. This is a
+subset: letters that need motion (J, Z) or that the rules can't tell apart yet are
+left out. Gesture control is paused while spelling.
+
+## Accuracy on real hands
+
+The automated tests use synthetic hands. To measure how well the rules work on
+**real** hands, each team member records samples, then runs the report:
+
+```powershell
+python scripts/record_samples.py --person <your name>   # hold a gesture, press its key
+python scripts/evaluate.py --save reports/accuracy.md
+```
+
+The report gives overall accuracy, accuracy per gesture and per person, and a
+confusion table (e.g. "PEACE recognised as TWO FINGERS: 3 times") that shows which
+thresholds in `config.py` to tune. Commit `tests/fixtures/recorded_hands.json` and the
+report: `pytest` then also checks that the rules get at least 80% of the recorded
+samples right.
+
+## Design decisions
+
+- **Rules first, not machine learning.** Geometric rules need no training data,
+  run on any laptop, and every decision can be explained ("all five fingers
+  extended"). The analyzer only needs `classify(features) -> str`, so a trained model
+  can replace the rules later and be compared using the accuracy report.
+- **No fake confidence percentage.** Rules don't produce a probability, so the UI
+  shows how many of the last 10 frames agreed instead of inventing a number.
+- **Measurements in palm sizes.** Distances are divided by the palm size and angles
+  use MediaPipe's 3D world landmarks, so gestures work near or far from the camera
+  and for small or big hands.
+- **Smoothing and logging once.** A gesture must win 7 of the last 10 frames to count,
+  and is saved once when it becomes stable, not 30 times a second. A hand that drops
+  out for under half a second keeps its history, so it isn't logged twice.
+- **Pinch needs a half-bent index.** In a fist the thumb can also touch the index
+  finger; the index angle (`PINCH_MIN_INDEX_ANGLE`) tells the two apart.
+- **Point Left/Right use the index finger's direction**, not the hand's, because a
+  pointing hand is often tilted.
+- **Open palm triggers no action** in control mode: it's how a hand looks right before
+  a swipe, so it would fire by accident.
+- **Moving gestures are events with a cooldown.** A swipe is reported once, then that
+  hand is ignored briefly, so one movement can't skip two slides. A jump too large for
+  one frame is treated as a tracking glitch (MediaPipe swapping Left/Right), not a
+  swipe.
+- **Safe by default.** Control mode is off until asked for and then locked by a
+  gesture password; tests use a fake keyboard and never press real keys.
+- **Generous heart check.** MediaPipe's fingertips are rough when two hands touch,
+  so the heart allows a wider gap; the `f` panel shows the live values for tuning.
 
 ## Testing
 
@@ -163,12 +247,12 @@ python feature_extractor.py   # extended fingers + thumb direction
 ### Testing with your own hands
 
 ```powershell
-python scripts/record_samples.py
+python scripts/record_samples.py --person <your name>
 ```
 
 Hold a gesture and press its key (shown on screen) to save it. Samples go to
-`tests/fixtures/recorded_hands.json` and are checked by `pytest`. Commit them so
-every teammate's hands are covered.
+`tests/fixtures/recorded_hands.json`; see [Accuracy on real hands](#accuracy-on-real-hands).
+Commit them so every teammate's hands are covered.
 
 ## Tuning
 
