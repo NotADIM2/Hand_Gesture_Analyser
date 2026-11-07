@@ -77,6 +77,8 @@ TEACH_MAX_NAME = 16
 # A hand counts as a taught pose only when this close to its examples (same units as
 # ML_MAX_DISTANCE). Strict, so taught poses don't take over the built-in ones.
 TAUGHT_MAX_DISTANCE = 0.3
+# Two taught poses clash when more than this share of one's examples look like the other.
+TAUGHT_MAX_CONFUSION = 0.1
 
 # --- Moving and two-hand gestures (motion_analyzer.py) -----------------------
 # One-hand positions are in frame widths (1.0 = the full width of the frame).

@@ -192,3 +192,26 @@ def test_empty_timer():
     timer = StageTimer()
     assert timer.summary() == "No frames measured."
     assert timer.live_line() == "SPEED: measuring..."
+
+
+# --- Taught poses vs each other, and taught letters --------------------------------------
+
+def test_different_taught_poses_dont_clash():
+    assert taught_demo().clashes() == []
+
+
+def test_two_names_for_the_same_pose_clash():
+    taught = taught_demo()
+    taught.add("LITTLE FINGER", [example(wobble(make_hand(("pinky",)))) for _ in range(30)], author="sam")
+    clashes = taught.clashes()
+    assert any(c.startswith("LITTLE FINGER looks like PINKY PROMISE") for c in clashes)
+    assert any(c.startswith("PINKY PROMISE looks like LITTLE FINGER") for c in clashes)
+
+
+def test_taught_letter_is_spelled_in_sign_mode():
+    from sign_language import SignSpeller
+
+    speller = SignSpeller()
+    for gesture in ("K", "FIST", "PINKY PROMISE", "I"):  # taught K, built-in S, a taught non-letter, taught I
+        speller.update([ga.GestureResult("Right", gesture, gesture, ga.STABLE, 9, 10, True)], [])
+    assert speller.text == "KSI"

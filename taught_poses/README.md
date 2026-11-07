@@ -8,5 +8,8 @@ A file holds the pose's name, who taught it (`taught_by`), when, and the hand
 landmarks of each recorded example. To remove a pose, delete its file.
 
 To add one, see "Add a pose for everyone" in the main README. `pytest` checks every
-file: valid format, a name that isn't a built-in gesture, and that it doesn't take
-over any built-in gesture.
+file: valid format, a name that isn't a built-in gesture, that it doesn't take over
+any built-in gesture, and that it isn't too similar to another taught pose.
+
+A pose with a one-letter name (e.g. `I`, `K`) is also spelled as that letter in sign
+letters mode.

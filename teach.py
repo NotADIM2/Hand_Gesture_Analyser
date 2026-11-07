@@ -118,6 +118,33 @@ class TaughtGestures:
         close = [self.labels[i] for i in nearest if distances[i] <= self.max_distance]
         return Counter(close).most_common(1)[0][0] if close else None
 
+    def confusions(self) -> Counter:
+        """(pose, mistaken for) -> number of that pose's examples that look like another taught pose.
+
+        Leave-one-out: each example is matched against all the others, as if it were a
+        new hand. A pose whose examples match a different pose is too close to it.
+        """
+        mistakes: Counter = Counter()
+        for i, vector in enumerate(self.vectors):
+            distances = np.linalg.norm(self.vectors - vector, axis=1)
+            distances[i] = np.inf
+            nearest = np.argsort(distances)[: self.k]
+            close = [self.labels[j] for j in nearest if distances[j] <= self.max_distance]
+            if close:
+                guess = Counter(close).most_common(1)[0][0]
+                if guess != self.labels[i]:
+                    mistakes[(self.labels[i], guess)] += 1
+        return mistakes
+
+    def clashes(self, max_share: float = config.TAUGHT_MAX_CONFUSION) -> list[str]:
+        """Readable warnings for poses too often mistaken for another taught pose."""
+        counts = Counter(self.labels)
+        return [
+            f"{pose} looks like {other} ({n} of {counts[pose]} examples)"
+            for (pose, other), n in sorted(self.confusions().items())
+            if n / counts[pose] > max_share
+        ]
+
     def _remember(self, name: str, examples: list[dict], authors: list[str]) -> None:
         vectors = [example_vector(e) for e in examples]
         if vectors:

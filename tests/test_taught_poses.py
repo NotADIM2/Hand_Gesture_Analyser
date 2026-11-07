@@ -32,6 +32,11 @@ def test_pose_names_are_unique():
     assert len(names) == len(set(names))
 
 
+def test_committed_poses_dont_look_like_each_other():
+    clashes = TaughtGestures().clashes()
+    assert not clashes, "Taught poses too similar to tell apart: " + "; ".join(clashes)
+
+
 @pytest.mark.parametrize("gesture", ga.GESTURES)
 def test_committed_poses_dont_take_over_built_in_gestures(gesture):
     classifier = WithTaughtGestures(ga.RuleBasedClassifier(), TaughtGestures())

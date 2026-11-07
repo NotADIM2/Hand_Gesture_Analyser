@@ -118,6 +118,8 @@ def run(
         print(f"Running (session {session_id}, {classifier} classifier). Press q in the video window to quit.")
         if taught.names:
             print("Taught poses: " + ", ".join(f"{n} (by {', '.join(taught.taught_by[n])})" for n in taught.names))
+            for clash in taught.clashes():
+                print(f"Warning: taught pose {clash}; they may be confused.")
         if controller.enabled:
             print(f"Control mode: {controller.profile}. Show the gesture password, then click the window to control.")
 

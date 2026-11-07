@@ -9,13 +9,19 @@ come back.
     WAVE       -> clear everything
 
 This is a subset of the alphabet: letters that need motion (J, Z) or poses the rules
-can't tell apart yet are not included.
+can't tell apart yet are not included. More letters can be taught: a pose taught
+with a one-character name (e.g. I or K, see teach.py) is spelled as that letter.
 """
 from typing import Iterable
 
 import config
 from gesture_analyzer import OPEN_PALM, GestureResult
 from motion_analyzer import SWIPE_LEFT, WAVE, MotionEvent
+
+
+def is_taught_letter(gesture: str) -> bool:
+    """A pose named with one letter or digit (built-in names are all longer)."""
+    return len(gesture) == 1 and gesture.isalnum()
 
 
 class SignSpeller:
@@ -41,8 +47,8 @@ class SignSpeller:
                 if self.text and not self.text.endswith(" "):
                     self._add(" ")
                     change = "SPACE"
-            elif result.gesture in self.letters:
-                letter = self.letters[result.gesture]
+            elif result.gesture in self.letters or is_taught_letter(result.gesture):
+                letter = self.letters.get(result.gesture, result.gesture)
                 self._add(letter)
                 change = letter
         return change

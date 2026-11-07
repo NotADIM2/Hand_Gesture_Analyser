@@ -254,9 +254,11 @@ git push -u origin pose/pinky-promise    # then open a pull request
 
 When the pull request is merged into `main`, everyone gets the pose with
 `git pull`. GitHub Actions runs `pytest` on the pull request, which checks the new
-file: valid format, a name that isn't a built-in gesture, and that it doesn't take
-over any built-in gesture. Each pose is a separate file, so poses taught by
-different people never conflict.
+file: valid format, a name that isn't a built-in gesture, that it doesn't take over
+any built-in gesture, and that it isn't too similar to another taught pose (more
+than 10% of one pose's examples looking like the other). The app also prints a
+warning at start if two taught poses are too alike. Each pose is a separate file,
+so poses taught by different people never conflict.
 
 ## Finger counting
 
@@ -300,9 +302,15 @@ stable:
 | FIST | S | | | |
 
 Open palm adds a space, swipe left deletes the last letter, wave clears everything.
-To repeat a letter, change pose (or lower your hand) and show it again. This is a
-subset: letters that need motion (J, Z) or that the rules can't tell apart yet are
-left out. Gesture control is paused while spelling.
+To repeat a letter, change pose (or lower your hand) and show it again. Gesture
+control is paused while spelling.
+
+**More letters can be taught.** Teach a pose (`t`) with a one-letter name, such as
+`I` (pinky up) or `K` (index and middle up, thumb between them), and sign mode spells
+it as that letter. What can't be taught: letters that need motion (J, Z), two-hand
+signs, and letters that differ only in small thumb positions (A, S, M, N, T and E
+are all closed fists, and R crosses two fingers): the measurements can't tell those
+apart.
 
 ## Accuracy on real hands
 
