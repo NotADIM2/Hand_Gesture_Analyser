@@ -5,7 +5,7 @@ shows what that mode is about:
 
     1 POSES            hand poses (labels on the hands, gesture details in the panel)
     2 MOVING GESTURES  palm trails and a banner for swipes, wave, circle, clap, heart
-    3 DRAW SHAPES      pinch to draw; drawn shapes are recognised
+    3 DRAW SHAPES      pinch to draw; drawn shapes are recognised (z undoes, wave clears)
     4 SIGN LETTERS     poses spell words
     5 EXERCISES        the hand exercise coach
     6 SIGN WORDS       basic sign-language words, made into sentences and spoken
@@ -55,6 +55,7 @@ KEY_FULLSCREEN = ord("w")
 KEY_EXERCISE = ord("e")
 KEY_DISMISS = ord("x")
 KEY_SKIP = ord("n")
+KEY_UNDO = ord("z")
 KEY_ESC = 27
 
 POSES, MOTION, DRAW, SIGN, EXERCISE, WORDS, PRACTICE = (

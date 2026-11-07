@@ -149,15 +149,21 @@ CONTROL_REPEAT_SECONDS = 0.4
 # --- Air drawing (air_draw.py) -----------------------------------------------
 # The pen goes down when thumb and index tips are closer than DRAW_TOUCH_RATIO
 # (fraction of palm size) and lifts only when they open past DRAW_LIFT_RATIO.
-DRAW_TOUCH_RATIO = 0.35
-DRAW_LIFT_RATIO = 0.5
-DRAW_SMOOTHING = 0.5           # 0 = raw fingertip, closer to 1 = smoother but laggier
+DRAW_TOUCH_RATIO = 0.4         # pen down: thumb and index tips this close (palm lengths)
+DRAW_LIFT_RATIO = 0.5          # pen up once they are this far apart (a shaky pinch keeps drawing; a fist is ~0.5)
+DRAW_SMOOTHING = 0.4           # 0 = raw fingertip, closer to 1 = smoother but laggier (rounds corners)
 DRAW_COLOUR = (255, 255, 0)    # BGR: cyan
 DRAW_THICKNESS = 6
-DRAW_JOIN_FRAMES = 12          # pen up this many frames (~0.4 s) = stroke finished, recognise it
+DRAW_JOIN_SECONDS = 0.4        # pen up this long = stroke finished, recognise it
 DRAW_JOIN_DISTANCE = 100.0     # pen down again within this many pixels before then = same stroke
 DRAW_MAX_JUMP = 0.25           # pen jumping this far (fraction of frame width) in one frame = glitch
 DRAW_GLITCH_FRAMES = 2         # ...unless it stays there longer than this: then the hand really moved
+DRAW_GROUP_SECONDS = 3.0       # strokes finished this close together may be sides of one shape
+DRAW_GROUP_MAX = 5             # at most this many strokes make one shape
+DRAW_MEET_RATIO = 0.25         # stroke ends meet when this close (share of the longer stroke)...
+DRAW_MEET_MIN = 40.0           # ...or this many pixels, whichever is more
+DRAW_CLOSE_RATIO = 0.5         # strokes close into a shape when the last meets the first this close
+                               # (share of the shortest stroke: a missing side leaves a gap of 1)
 SNAPSHOT_DIR = BASE_DIR / "data" / "snapshots"
 
 # --- Sign letters (sign_language.py) -----------------------------------------

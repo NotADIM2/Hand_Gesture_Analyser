@@ -48,8 +48,8 @@ The top left of the window always says which mode you're in (`MODE 1: POSES`).
    the magenta trail and the banner. Two hands: clap, make a heart.
 3. **Draw shapes** (key `3`): pinch thumb and index, draw a circle in the air, open
    your fingers: it's recognised (`SHAPE: CIRCLE`) and redrawn as a clean green
-   circle. Try a triangle, a square, a rectangle, a straight line. Fist clears, `s`
-   saves the picture.
+   circle. Try a triangle, a rectangle, a straight line, and a square drawn one side
+   at a time. `z` undoes, a wave clears, `s` saves the picture.
 4. **Sign letters** (key `4`): spell a word, e.g. **BUY** (four fingers, two
    fingers, call me), open palm to finish it and hear it spoken.
 5. **Exercises** (key `5`): follow the routine on screen (and spoken): open and
@@ -93,7 +93,7 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Result / UI | `ui.py` | Skeleton, result panel, history and feature panels, keys |
 | Teaching | `teach.py` | Poses taught live with `t`, checked before the normal classifier |
 | Benchmark | `benchmark.py` | Times each pipeline stage (`--benchmark`) |
-| Draw shapes | `air_draw.py` | Pinch to draw on the video, fist to clear; strokes go to the shape recogniser |
+| Draw shapes | `air_draw.py` | Pinch to draw; strokes (one or several per shape) go to the shape recogniser; undo, wave to clear |
 | Shape recogniser | `shape_recognizer.py` | Line, circle, triangle, square or rectangle from a drawn stroke |
 | Exercise coach | `exercise_coach.py` | Guided hand exercises: counts, times and measures repetitions |
 | Speech | `speech.py` | Speaks text with the system's offline voice, in the background |
@@ -172,6 +172,7 @@ the exercise results).
 | `w` | Full screen on/off (Esc also leaves full screen) |
 | `x` | Dismiss the emergency alert |
 | `n` | Sign practice: skip to the next word |
+| `z` | Draw shapes: undo the last stroke or shape |
 
 History is saved in `data/gesture_history.db`, one row each time a new gesture
 becomes stable (not once per frame).
@@ -343,21 +344,45 @@ features and drawing take well under a millisecond each.
 ## Draw shapes
 
 Press `3` (or `d`). Touch your thumb and index fingertips together to put the pen
-down, move to draw, open them to lift the pen. Make a fist to clear. Press `s` to save
-the picture.
+down, move to draw, open them to lift the pen. A white ring shows where the pen is
+while it's up, a filled dot while it's drawing.
+
+| Do | To |
+|---|---|
+| Pinch and move | Draw |
+| `z` | Undo the last stroke or shape |
+| Wave (pen up) | Clear the drawing |
+| `s` | Save the picture |
 
 When the pen lifts (or your hand leaves the picture), the stroke is recognised
 (`shape_recognizer.py`). A recognised shape replaces the shaky stroke with a clean
 green outline, flashes `SHAPE: CIRCLE` and is saved to the history as `DRAWN CIRCLE`;
-anything else stays as drawn. A stroke is recognised about 0.4 s after the pen
-lifts: if the pinch only loosened for a moment (it often does at a sharp corner) and
-you pinch again near where it stopped, the same stroke carries on, so a rectangle
-isn't cut into separate sides. A one-frame jump of the pen (a tracking glitch) is
-ignored.
+anything else stays as drawn.
 
-The status line shows `Pen: DOWN` / `UP` and the last stroke: its shape, or why it
-isn't one (`not closed: end where you started`, `scribble`, or `unclear` with the
-measurements below, which helps when tuning).
+**One stroke or several.** Draw a square in one go, or one side at a time: strokes
+finished within 3 s of each other whose ends meet are tried together, so four sides
+make a square, three a triangle, two arcs a circle. Sides can be drawn in any
+direction and needn't meet exactly. Until the last side closes the shape, each side
+shows as a line.
+
+**Broken pinches.** A stroke counts as finished 0.4 s after the pen lifts; if the
+pinch only loosened for a moment (it often does at a sharp corner) and you pinch
+again near where it stopped, the same stroke carries on. A one-frame jump of the pen
+(a tracking glitch) is ignored.
+
+**Clearing.** A fist used to clear the drawing, but a relaxed hand or a tight pinch
+often looks like a fist, which wiped strokes before they were even recognised. Now a
+wave clears it (only with the pen up, so a zig-zag line can't), and `z` undoes.
+
+The status line shows `Pen: DOWN` / `UP` and the last stroke: its shape (with how
+many strokes made it), or why it isn't one (`not closed: end where you started`,
+`scribble`, or `unclear` with the measurements below, which helps when tuning).
+
+Tested on simulated hand drawing (the hand slowing at corners, ~20 fps, jitter, the
+pen's lag rounding corners, overshoot): one-stroke shapes are recognised 99–100% of
+the time, shapes with broken pinches 100%, shapes drawn side by side 95–100%.
+The drawing is kept as a list of strokes and shapes; finished ones are drawn once
+into a cached layer, so drawing them costs under 1 ms a frame.
 
 | Shape | Draw | Recognised by |
 |---|---|---|

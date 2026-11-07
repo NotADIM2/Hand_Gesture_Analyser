@@ -1,19 +1,25 @@
 """Draw shapes in the air with a pinch (mode 3: DRAW SHAPES).
 
 Touch your thumb and index tips together to put the pen down, move to draw, and open
-them to lift the pen. When the pen lifts, the stroke is handed to the shape
-recogniser (shape_recognizer.py): a recognised circle, triangle, square, rectangle
-or line replaces the shaky stroke with a clean outline; anything else stays as
-drawn. A fist clears the drawing. The pen sits between the two fingertips, smoothed
-a little so the line isn't shaky.
+them to lift the pen. When the pen lifts, the stroke goes to the shape recogniser
+(shape_recognizer.py): a circle, triangle, square, rectangle or line is replaced by a
+clean outline; anything else stays as drawn.
 
-A pinch often loosens for a moment at a sharp corner. So a stroke is only recognised
-once the pen has stayed up for DRAW_JOIN_FRAMES frames; if it goes down again near
-where it lifted before that, the same stroke continues. A one-frame jump of the pen
-across the picture is a tracking glitch and is skipped.
+Shapes can be drawn in one stroke or several: four separate sides that meet make a
+square, three make a triangle, two arcs a circle. Strokes finished within
+DRAW_GROUP_SECONDS of each other whose ends meet are tried together.
 
-Like the rest of the app, it works on landmarks and features, not on pixels, so it
-can be tested without a webcam.
+A pinch often loosens for a moment at a sharp corner, so a stroke only counts as
+finished once the pen has stayed up for DRAW_JOIN_SECONDS; pinching again near where
+it stopped carries on the same stroke. A one-frame jump of the pen across the picture
+is a tracking glitch and is skipped. Wave (with the pen up) clears the drawing; z
+undoes the last stroke or shape.
+
+The drawing is kept as a list of strokes and shapes, so nothing is ever rubbed out by
+accident and undo is simple. Finished items are drawn once into a cached layer when
+the drawing changes; each frame only copies that layer's drawn pixels and adds the
+stroke in progress. Like the rest of the app, it works on landmarks, not on
+pixels, so it can be tested without a webcam.
 """
 from dataclasses import dataclass
 
@@ -22,9 +28,9 @@ import numpy as np
 
 import config
 from feature_extractor import HandFeatures
-from gesture_analyzer import FIST, GestureResult, track_keys
+from gesture_analyzer import GestureResult, track_keys
 from hand_detector import DetectedHand
-from shape_recognizer import Shape, analyse, draw_shape
+from shape_recognizer import LINE, Shape, analyse, draw_shape
 
 THUMB_TIP, INDEX_TIP = 4, 8
 
@@ -36,59 +42,70 @@ class DrawnShape:
 
 
 @dataclass
+class Item:
+    """One thing on the drawing: a stroke as drawn, or the clean shape it became."""
+    points: np.ndarray            # the pen's path, (n, 2) pixels
+    shape: Shape | None           # drawn instead of the points when recognised
+    hand: str
+    finished_at: float
+
+    @property
+    def open(self) -> bool:
+        """Could be one side of a shape drawn in several strokes."""
+        return self.shape is None or self.shape.name == LINE
+
+
+@dataclass
 class _Lifted:
-    points: list            # the stroke so far
-    frame: int              # frame number when the pen lifted
+    points: list
+    at: float      # when the pen lifted
 
 
 class AirCanvas:
     def __init__(self, shapes: bool = True):
-        self.shapes = shapes   # recognise shapes when the pen lifts
-        self.canvas: np.ndarray | None = None
-        self.last_stroke: str | None = None        # what the last stroke was, or why it isn't a shape
-        self._pen: dict[str, np.ndarray] = {}      # hand key -> smoothed pen position while drawing
-        self._stroke: dict[str, list] = {}         # hand key -> pen positions of the stroke being drawn
-        self._lifted: dict[str, _Lifted] = {}      # hand key -> stroke waiting to be recognised
-        self._before: np.ndarray | None = None     # the drawing before the current stroke
-        self._jumps: dict[str, int] = {}           # hand key -> frames in a row the pen jumped
-        self._frame = 0
+        self.shapes = shapes                      # recognise shapes when the pen lifts
+        self.items: list[Item] = []
+        self.last_stroke: str | None = None       # what the last stroke was, or why it isn't a shape
+        self.pens: dict[str, tuple[np.ndarray, bool]] = {}   # hand key -> (pen position, down?) this frame
+        self._pen: dict[str, np.ndarray] = {}     # hand key -> smoothed pen position while drawing
+        self._stroke: dict[str, list] = {}        # hand key -> pen positions of the stroke being drawn
+        self._lifted: dict[str, _Lifted] = {}     # hand key -> stroke waiting to be finished
+        self._jumps: dict[str, int] = {}          # hand key -> frames in a row the pen jumped
+        self._version = 0                         # bumped whenever self.items changes
+        self._layer = None                        # (version, frame shape, pixel indices, colours)
 
-    def update(self, frame_shape: tuple, hands: list[DetectedHand],
-               features: list[HandFeatures], results: list[GestureResult]) -> list[DrawnShape]:
+    def update(self, frame_shape: tuple, hands: list[DetectedHand], features: list[HandFeatures],
+               results: list[GestureResult], now: float) -> list[DrawnShape]:
         """Call once per frame; returns the shapes recognised this frame."""
-        if self.canvas is None or self.canvas.shape != frame_shape:
-            self.canvas = np.zeros(frame_shape, np.uint8)
-        self._frame += 1
         max_jump = config.DRAW_MAX_JUMP * frame_shape[1]
         keys = track_keys(hands)
-        for key, hand, f, result in zip(keys, hands, features, results):
-            if result.gesture == FIST and result.newly_stable:
-                self.clear()
-                return []
+        self.pens = {}
+        for key, hand, f in zip(keys, hands, features):
+            tip = hand.image_points[[THUMB_TIP, INDEX_TIP], :2].mean(axis=0)
             # Hysteresis: the pen goes down below one gap and only lifts above a
             # larger one, so a slightly shaky pinch doesn't break the line.
             gap_limit = config.DRAW_LIFT_RATIO if key in self._pen else config.DRAW_TOUCH_RATIO
             if f.thumb_index_distance >= gap_limit:
-                self._lift(key)
+                self._lift(key, now)
+                self.pens[key] = (tip, False)
                 continue
-            tip = hand.image_points[[THUMB_TIP, INDEX_TIP], :2].mean(axis=0)
             if key not in self._pen:
                 self._pen_down(key, tip)
             if np.linalg.norm(tip - self._pen[key]) > max_jump:
                 self._jumps[key] = self._jumps.get(key, 0) + 1
                 if self._jumps[key] <= config.DRAW_GLITCH_FRAMES:
+                    self.pens[key] = (self._pen[key], True)
                     continue   # tracking glitch, not a movement
-                self._lift(key)   # it stayed there: the hand really moved, start a new stroke
+                self._lift(key, now)   # it stayed there: the hand really moved, start a new stroke
                 self._pen_down(key, tip)
             self._jumps.pop(key, None)
-            previous = self._pen[key]
-            pen = config.DRAW_SMOOTHING * previous + (1 - config.DRAW_SMOOTHING) * tip
-            cv2.line(self.canvas, _px(previous), _px(pen), config.DRAW_COLOUR, config.DRAW_THICKNESS, cv2.LINE_AA)
+            pen = config.DRAW_SMOOTHING * self._pen[key] + (1 - config.DRAW_SMOOTHING) * tip
             self._pen[key] = pen
             self._stroke[key].append(pen)
+            self.pens[key] = (pen, True)
         for key in set(self._pen) - set(keys):   # the hand left the picture: the pen lifts
-            self._lift(key)
-        return self._finish_waiting()
+            self._lift(key, now)
+        return self._finish_waiting(now)
 
     def _pen_down(self, key: str, tip: np.ndarray) -> None:
         waiting = self._lifted.pop(key, None)
@@ -99,54 +116,155 @@ class AirCanvas:
             return
         if waiting is not None:
             self._lifted[key] = waiting   # a new stroke elsewhere; the old one still finishes
-        if not self._pen and not self._lifted:
-            self._before = self.canvas.copy()
         self._pen[key] = tip
         self._stroke[key] = [tip]
 
-    def _lift(self, key: str) -> None:
+    def _lift(self, key: str, now: float) -> None:
         if self._pen.pop(key, None) is not None:
-            self._lifted[key] = _Lifted(self._stroke.pop(key), self._frame)
+            self._lifted[key] = _Lifted(self._stroke.pop(key), now)
 
-    def _finish_waiting(self) -> list[DrawnShape]:
+    def _finish_waiting(self, now: float) -> list[DrawnShape]:
         finished = []
         for key, waiting in list(self._lifted.items()):
-            if self._frame - waiting.frame < config.DRAW_JOIN_FRAMES:
+            if now - waiting.at < config.DRAW_JOIN_SECONDS:
                 continue
             del self._lifted[key]
-            if not self.shapes:
-                continue
-            result = analyse(np.array(waiting.points))
-            self.last_stroke = result.reason
-            if result.shape is None:
-                continue                    # not a shape: the stroke stays as drawn
-            if not self._pen and not self._lifted and self._before is not None:
-                self.canvas[:] = self._before   # rub out the shaky stroke (unless another is in progress)
-            draw_shape(self.canvas, result.shape)
-            finished.append(DrawnShape(key.split("#")[0], result.shape))
+            drawn = self._finish(np.array(waiting.points), key.split("#")[0], now)
+            if drawn:
+                finished.append(drawn)
         return finished
 
+    def _finish(self, points: np.ndarray, hand: str, now: float) -> DrawnShape | None:
+        if len(points) < 2:
+            return None
+        result = analyse(points) if self.shapes else None
+        shape = result.shape if result else None
+        self.items.append(Item(points, shape, hand, now))
+        self._version += 1
+        if result is None:
+            return None
+        self.last_stroke = result.reason
+        if shape is None or shape.name == LINE:
+            # Maybe the last side of a shape drawn in several strokes.
+            combined = self._combine_recent()
+            if combined:
+                shape = combined
+        return DrawnShape(hand, shape) if shape else None
+
+    def _combine_recent(self) -> Shape | None:
+        """Try the latest strokes together (2 up to DRAW_GROUP_MAX): if their ends meet in a
+        closed loop that is a shape, they become that one shape."""
+        recent = []
+        for item in reversed(self.items):
+            if not item.open or (recent and recent[-1].finished_at - item.finished_at > config.DRAW_GROUP_SECONDS):
+                break
+            recent.append(item)
+            if len(recent) == config.DRAW_GROUP_MAX:
+                break
+        recent.reverse()   # in drawing order
+        for k in range(2, len(recent) + 1):
+            group = recent[-k:]
+            path = chain([item.points for item in group])
+            # Several strokes make a shape only once the last one meets the first again.
+            # The gap must be small next to the shortest stroke: three sides of a long
+            # rectangle leave a gap as long as a whole side, and aren't a shape yet.
+            shortest = min(_length(item.points) for item in group)
+            if path is None or np.linalg.norm(path[-1] - path[0]) > max(
+                    config.DRAW_MEET_MIN, config.DRAW_CLOSE_RATIO * shortest):
+                continue
+            result = analyse(path)
+            if result.shape is not None and result.shape.name != LINE:
+                del self.items[-k:]
+                self.items.append(Item(path, result.shape, group[-1].hand, group[-1].finished_at))
+                self._version += 1
+                self.last_stroke = f"{result.reason} ({k} strokes)"
+                return result.shape
+        return None
+
     def overlay(self, frame: np.ndarray) -> np.ndarray:
-        """Paint the drawing onto the frame."""
-        if self.canvas is not None and self.canvas.shape == frame.shape:
-            drawn = self.canvas.any(axis=2)
-            frame[drawn] = self.canvas[drawn]
+        """Draw the drawing, the strokes in progress and the pens onto the frame."""
+        if self.items:
+            _, _, index, colours = self._finished_layer(frame.shape)
+            frame.reshape(-1, 3)[index] = colours
+        _ink(frame, list(self._stroke.values()) + [w.points for w in self._lifted.values()])
+        for pen, down in self.pens.values():
+            centre = tuple(int(v) for v in pen)
+            if down:
+                cv2.circle(frame, centre, config.DRAW_THICKNESS, config.DRAW_COLOUR, -1, cv2.LINE_AA)
+            else:   # a ring where the pen would touch down
+                cv2.circle(frame, centre, config.DRAW_THICKNESS + 4, (255, 255, 255), 2, cv2.LINE_AA)
         return frame
 
+    def _finished_layer(self, shape: tuple):
+        """The finished strokes and shapes as (pixel indices, colours), redrawn only when they change."""
+        if self._layer is None or self._layer[:2] != (self._version, shape):
+            layer = np.zeros(shape, np.uint8)
+            _ink(layer, [item.points for item in self.items if item.shape is None])
+            for item in self.items:
+                if item.shape is not None:
+                    draw_shape(layer, item.shape)
+            flat = layer.reshape(-1, 3)
+            index = np.flatnonzero(flat.any(axis=1))
+            self._layer = (self._version, shape, index, flat[index])
+        return self._layer
+
+    def undo(self) -> bool:
+        """Remove the last stroke or shape; False if there was nothing to undo."""
+        if not self.items:
+            return False
+        self.items.pop()
+        self._version += 1
+        self.last_stroke = None
+        return True
+
     def clear(self) -> None:
-        if self.canvas is not None:
-            self.canvas[:] = 0
+        self.items.clear()
+        self._version += 1
         self._pen.clear()
         self._stroke.clear()
         self._lifted.clear()
         self._jumps.clear()
-        self._before = None
         self.last_stroke = None
 
     @property
     def pen_down(self) -> bool:
         return bool(self._pen)
 
+    @property
+    def empty(self) -> bool:
+        return not self.items and not self._stroke and not self._lifted
 
-def _px(point: np.ndarray) -> tuple[int, int]:
-    return int(round(point[0])), int(round(point[1]))
+
+def _ink(image: np.ndarray, strokes) -> None:
+    """Draw strokes as they were drawn (cyan lines)."""
+    lines = [np.asarray(s).astype(np.int32).reshape(-1, 1, 2) for s in strokes if len(s) > 1]
+    if lines:
+        cv2.polylines(image, lines, False, config.DRAW_COLOUR, config.DRAW_THICKNESS, cv2.LINE_AA)
+
+
+def chain(strokes: list[np.ndarray]) -> np.ndarray | None:
+    """Join strokes end to end into one path, each one turned round if needed so that its
+    nearer end meets the path so far. None if two of them don't meet."""
+    path = strokes[0]
+    second = strokes[1]
+    # The first stroke may have been drawn either way round too: pick the closest pairing.
+    options = [(a, b) for a in (path, path[::-1]) for b in (second, second[::-1])]
+    path, second = min(options, key=lambda ab: np.linalg.norm(ab[0][-1] - ab[1][0]))
+    previous = path
+    for stroke in [second] + list(strokes[2:]):
+        if np.linalg.norm(stroke[-1] - path[-1]) < np.linalg.norm(stroke[0] - path[-1]):
+            stroke = stroke[::-1]
+        if np.linalg.norm(stroke[0] - path[-1]) > _meet_distance(previous, stroke):
+            return None
+        path, previous = np.vstack([path, stroke]), stroke
+    return path
+
+
+def _meet_distance(a: np.ndarray, b: np.ndarray) -> float:
+    """How close two stroke ends must be to count as meeting: a share of the longer stroke
+    (hand-drawn sides rarely meet exactly, and a short side often meets a long one)."""
+    return max(config.DRAW_MEET_MIN, config.DRAW_MEET_RATIO * max(_length(a), _length(b)))
+
+
+def _length(points: np.ndarray) -> float:
+    return float(np.linalg.norm(np.diff(points, axis=0), axis=1).sum())

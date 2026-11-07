@@ -35,7 +35,7 @@ from feature_extractor import extract_features
 from gesture_analyzer import GestureAnalyzer, RuleBasedClassifier
 from hand_detector import HandDetector
 from ml_classifier import KNNClassifier
-from motion_analyzer import MotionAnalyzer, measure_heart
+from motion_analyzer import WAVE, MotionAnalyzer, measure_heart
 from phrases import PhraseBuilder
 from sign_language import SignSpeller
 from sign_practice import SignPractice
@@ -43,7 +43,7 @@ from sign_words import SignWords
 from speech import Speaker
 from teach import Teacher, TaughtGestures, WithTaughtGestures
 from ui import (
-    DRAW, EXERCISE, KEY_CLEAR, KEY_CONTROL, KEY_DISMISS, KEY_ESC, KEY_QUIT, KEY_SKIP, KEY_SAVE, KEY_TEACH, MODE_KEYS, MODE_TITLES,
+    DRAW, EXERCISE, KEY_CLEAR, KEY_CONTROL, KEY_DISMISS, KEY_ESC, KEY_QUIT, KEY_SKIP, KEY_UNDO, KEY_SAVE, KEY_TEACH, MODE_KEYS, MODE_TITLES,
     MOTION, POSES, PRACTICE, SHOWS_POSES, SIGN, WORDS, FPSCounter, HistoryView, Interface, draw_alert,
 )
 
@@ -71,8 +71,8 @@ def status_lines(controller: GestureController, password: GesturePassword, mode:
     if mode == MOTION:
         lines.append("Move one palm: swipe, wave or draw a circle. Two hands: clap or heart")
     if mode == DRAW:
-        lines.append("Pinch thumb and index to draw, open them to finish, fist clears")
-        lines.append("Shapes: circle, triangle, square, rectangle, straight line")
+        lines.append("Pinch thumb and index to draw, open them to finish; z undoes, wave clears")
+        lines.append("Shapes in one stroke or several: circle, triangle, square, rectangle, line")
     if mode == SIGN:
         lines.append("Palm = space, thumbs up = say it, swipe left = delete, wave = clear")
     if mode == WORDS:
@@ -185,9 +185,13 @@ def run(
                 last_move = moves[-1]
             drawn, signed = [], None
             if mode == DRAW:
-                drawn = canvas.update(frame.shape, hands, features, results)
+                drawn = canvas.update(frame.shape, hands, features, results, now)
                 for d in drawn:
                     last_action, last_action_at = f"SHAPE: {d.shape.name}", now
+                # Wave to wipe the board (only with the pen up, so a zig-zag line can't do it).
+                if not canvas.pen_down and not canvas.empty and any(m.gesture == WAVE for m in moves):
+                    canvas.clear()
+                    last_action, last_action_at = "CLEARED", now
                 canvas.overlay(frame)
             elif mode == SIGN:
                 change = speller.update(results, moves)
@@ -335,6 +339,8 @@ def run(
                 message = practice.skip(now)
                 last_action, last_action_at = message, now
                 speaker.say(message.replace("SIGN: ", "sign ").lower())
+            if key == KEY_UNDO and mode == DRAW and canvas.undo():
+                last_action, last_action_at = "UNDO", now
             if key == KEY_DISMISS:
                 alarm.dismiss()
             if key == KEY_SAVE:

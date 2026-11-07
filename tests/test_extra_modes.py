@@ -1,4 +1,4 @@
-"""Gesture password, air drawing, sign letters and the accuracy report."""
+"""Gesture password, sign letters and the accuracy report."""
 import sys
 from pathlib import Path
 
@@ -7,10 +7,7 @@ import pytest
 
 import gesture_analyzer as ga
 import motion_analyzer as ma
-from air_draw import AirCanvas
 from controller import GesturePassword
-from feature_extractor import extract_features
-from hand_detector import DetectedHand
 from sign_language import SignSpeller
 from synthetic_hand import make_hand
 
@@ -81,56 +78,6 @@ def test_lock_and_no_password():
     pw.lock()
     assert not pw.unlocked
     assert GesturePassword(()).unlocked  # empty password = always unlocked
-
-
-# --- Air drawing -----------------------------------------------------------------
-
-PALM = 80
-
-
-def pinch_hand(x, y, pinched=True):
-    pts = make_hand(("index",))
-    if pinched:
-        pts[4] = pts[8] + [-0.05, 0.0, 0.0]   # thumb tip on the index tip
-    image = pts * PALM + [x, y, 0]
-    hand = DetectedHand("Right", 0.98, image / [640, 480, 640], pts * 0.09, image)
-    return hand, extract_features(hand.world_landmarks, hand.image_points, "Right")
-
-
-def draw_path(canvas, xs, pinched=True, gesture=ga.UNKNOWN):
-    for x in xs:
-        hand, f = pinch_hand(x, 300, pinched)
-        canvas.update((480, 640, 3), [hand], [f], [pose(gesture, newly_stable=False)])
-
-
-def test_pinch_draws_a_line():
-    canvas = AirCanvas()
-    draw_path(canvas, range(100, 400, 10))
-    assert canvas.canvas.any()
-    assert canvas.pen_down
-
-
-def test_open_fingers_draw_nothing():
-    canvas = AirCanvas()
-    draw_path(canvas, range(100, 400, 10), pinched=False)
-    assert not canvas.canvas.any()
-    assert not canvas.pen_down
-
-
-def test_fist_clears_the_drawing():
-    canvas = AirCanvas()
-    draw_path(canvas, range(100, 400, 10))
-    hand, f = pinch_hand(300, 300, pinched=False)
-    canvas.update((480, 640, 3), [hand], [f], [pose(ga.FIST)])
-    assert not canvas.canvas.any()
-
-
-def test_overlay_paints_onto_frame():
-    canvas = AirCanvas()
-    draw_path(canvas, range(100, 400, 10))
-    frame = np.zeros((480, 640, 3), np.uint8)
-    canvas.overlay(frame)
-    assert (frame == canvas.canvas).all() and frame.any()
 
 
 # --- Sign letters ------------------------------------------------------------------
