@@ -84,7 +84,9 @@ CLAP_SECONDS = 0.6
 CLAP_START_DISTANCE = 2.0
 CLAP_TOUCH_DISTANCE = 0.8
 # Heart: index tips touching and thumb tips touching, wrists apart, held a few frames.
-HEART_TOUCH_DISTANCE = 0.35
+# MediaPipe's fingertips are rough when two hands touch, so "touching" is generous.
+# Press f in the app to see the live values.
+HEART_TOUCH_DISTANCE = 0.6
 HEART_MIN_WRIST_GAP = 0.8
 HEART_HOLD_FRAMES = 5
 
@@ -93,7 +95,7 @@ WINDOW_NAME = "Hand Gesture Analyser"
 HISTORY_REFRESH_SECONDS = 0.5
 HISTORY_RECENT_ROWS = 5
 # How long a moving or two-hand gesture stays on screen after it happens.
-MOTION_DISPLAY_SECONDS = 1.5
+MOTION_DISPLAY_SECONDS = 2.5
 
 # The 21 MediaPipe hand landmarks joined into a skeleton (landmark index pairs).
 HAND_CONNECTIONS = (

@@ -17,7 +17,7 @@ from database import GestureDatabase
 from feature_extractor import extract_features
 from gesture_analyzer import GestureAnalyzer
 from hand_detector import HandDetector
-from motion_analyzer import MotionAnalyzer
+from motion_analyzer import MotionAnalyzer, measure_heart
 from ui import KEY_CLEAR, KEY_QUIT, FPSCounter, HistoryView, Interface
 
 
@@ -40,6 +40,7 @@ def run(camera_index: int = config.CAMERA_INDEX, db_path: Path | None = config.D
         analyzer = GestureAnalyzer()
         motion = MotionAnalyzer()
         recent_moves = []
+        last_move = None
         ui = Interface()
         fps = FPSCounter()
         history = HistoryView()
@@ -60,6 +61,8 @@ def run(camera_index: int = config.CAMERA_INDEX, db_path: Path | None = config.D
             now = time.monotonic()
             moves = motion.update(hands, frame.shape[1], now)
             recent_moves = [m for m in recent_moves + moves if now - m.time < config.MOTION_DISPLAY_SECONDS]
+            if moves:
+                last_move = moves[-1]
 
             if db is not None:
                 for result in results:
@@ -74,7 +77,8 @@ def run(camera_index: int = config.CAMERA_INDEX, db_path: Path | None = config.D
 
             ui.render(
                 frame, hands, results, features, fps.tick(), history if db else None,
-                moves=recent_moves, trails=motion.trails(frame.shape[1]),
+                moves=recent_moves, trails=motion.trails(frame.shape[1]), last_move=last_move,
+                heart=measure_heart(*hands) if len(hands) == 2 and ui.show_features else None,
             )
             key = ui.show(frame)
             if key in KEY_QUIT or ui.closed:

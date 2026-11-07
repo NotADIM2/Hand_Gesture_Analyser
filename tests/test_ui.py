@@ -73,7 +73,19 @@ def test_draw_moving_gesture_and_trail():
     interface.show_history = interface.show_features = False
     moves = [MotionEvent("SWIPE LEFT", "Right", 0.0), MotionEvent("HEART", "Both", 0.1)]
     trail = np.array([[100.0, 200.0], [150.0, 210.0], [200.0, 220.0]])
-    interface.render(frame, [], [], [], 30.0, moves=moves, trails=[trail])
+    interface.render(frame, [], [], [], 30.0, moves=moves, trails=[trail], last_move=moves[-1])
+    pink = (np.abs(frame.astype(int) - ui.TRAIL).sum(axis=2) < 30).sum()
+    assert pink > 200  # the trail is clearly visible
+    assert "Last move: HEART (BOTH HANDS)" in [t for t, _ in ui.result_lines(0, [], moves[-1])]
     assert ui.move_text(moves[-1]) == "HEART (BOTH HANDS)"
     assert ui.move_text(moves[0]) == "SWIPE LEFT (RIGHT HAND)"
     assert frame.any()
+
+
+def test_heart_readout_in_feature_panel():
+    from motion_analyzer import HeartMeasurements
+
+    lines = ui.feature_lines([], HeartMeasurements(0.9, 0.2, 1.4, True))
+    text, colour = lines[-1]
+    assert "index tips 0.90 NO" in text and "thumb tips 0.20 ok" in text
+    assert colour == ui.ORANGE

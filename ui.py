@@ -15,7 +15,7 @@ import config
 from feature_extractor import FINGER_NAMES, HandFeatures
 from gesture_analyzer import STABLE, UNCERTAIN, GestureResult
 from hand_detector import DetectedHand
-from motion_analyzer import MotionEvent
+from motion_analyzer import HeartMeasurements, MotionEvent
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 WHITE = (255, 255, 255)
@@ -25,7 +25,7 @@ YELLOW = (0, 215, 255)
 ORANGE = (0, 140, 255)
 RED = (60, 60, 230)
 SKELETON = (255, 200, 0)
-TRAIL = (255, 120, 200)
+TRAIL = (255, 0, 255)  # magenta
 JOINT = (0, 0, 255)
 
 STATUS_COLOURS = {STABLE: GREEN, UNCERTAIN: YELLOW}
@@ -97,7 +97,7 @@ def move_text(move: MotionEvent) -> str:
     return f"{move.gesture} ({move.hand.upper()} HAND{'S' if move.hand == 'Both' else ''})"
 
 
-def draw_banner(frame: np.ndarray, text: str, colour=GREEN, scale: float = 0.9) -> None:
+def draw_banner(frame: np.ndarray, text: str, colour=GREEN, scale: float = 1.1) -> None:
     """Large outlined text, centred just above the help line."""
     (w, _), _ = cv2.getTextSize(text, FONT, scale, 2)
     origin = (max(0, (frame.shape[1] - w) // 2), frame.shape[0] - 45)
@@ -105,8 +105,18 @@ def draw_banner(frame: np.ndarray, text: str, colour=GREEN, scale: float = 0.9) 
     cv2.putText(frame, text, origin, FONT, scale, colour, 2, cv2.LINE_AA)
 
 
-def result_lines(hand_count: int, results: list[GestureResult]) -> list[tuple[str, tuple]]:
+def draw_trail(frame: np.ndarray, trail: np.ndarray) -> None:
+    """The palm's recent path, with a dot where the palm is now."""
+    points = trail.astype(np.int32)
+    cv2.polylines(frame, [points], False, TRAIL, 4, cv2.LINE_AA)
+    cv2.circle(frame, tuple(int(v) for v in points[-1]), 7, TRAIL, -1, cv2.LINE_AA)
+
+
+def result_lines(hand_count: int, results: list[GestureResult],
+                 last_move: MotionEvent | None = None) -> list[tuple[str, tuple]]:
     lines = [(f"Hands detected: {hand_count}", WHITE)]
+    if last_move is not None:
+        lines.append((f"Last move: {move_text(last_move)}", TRAIL))
     if not results:
         lines.append(("Status: NO HAND DETECTED", RED))
         return lines
@@ -136,7 +146,20 @@ def history_lines(history: HistoryView) -> list[tuple[str, tuple]]:
     return lines
 
 
-def feature_lines(features: list[HandFeatures]) -> list[tuple[str, tuple]]:
+def heart_lines(m: HeartMeasurements) -> list[tuple[str, tuple]]:
+    def mark(ok: bool) -> str:
+        return "ok" if ok else "NO"
+    index_ok = m.index_gap < config.HEART_TOUCH_DISTANCE
+    thumb_ok = m.thumb_gap < config.HEART_TOUCH_DISTANCE
+    wrist_ok = m.wrist_gap > config.HEART_MIN_WRIST_GAP
+    return [(
+        f"HEART: index tips {m.index_gap:.2f} {mark(index_ok)}  thumb tips {m.thumb_gap:.2f} {mark(thumb_ok)}  "
+        f"wrists {m.wrist_gap:.2f} {mark(wrist_ok)}  index above {mark(m.index_above_thumbs)}",
+        GREEN if m.is_heart else ORANGE,
+    )]
+
+
+def feature_lines(features: list[HandFeatures], heart: HeartMeasurements | None = None) -> list[tuple[str, tuple]]:
     lines = [("FEATURES  (T I M R P = extended fingers)", WHITE)]
     for f in features:
         fingers = " ".join("1" if f.extended[n] else "0" for n in FINGER_NAMES)
@@ -146,6 +169,8 @@ def feature_lines(features: list[HandFeatures]) -> list[tuple[str, tuple]]:
             (f"  spread {f.index_middle_spread:.0f}  thumb-index {f.thumb_index_distance:.2f}  "
              f"thumb-out {f.thumb_lateral:.2f}  thumb {f.thumb_direction or '-'}", YELLOW),
         ]
+    if heart is not None:
+        lines += heart_lines(heart)
     return lines
 
 
@@ -166,21 +191,23 @@ class Interface:
         history: HistoryView | None = None,
         moves: list[MotionEvent] = (),
         trails: list[np.ndarray] = (),
+        last_move: MotionEvent | None = None,
+        heart: HeartMeasurements | None = None,
     ) -> np.ndarray:
-        for trail in trails:
-            cv2.polylines(frame, [trail.astype(np.int32)], False, TRAIL, 2, cv2.LINE_AA)
         for hand, result in zip(hands, results):
             colour = STATUS_COLOURS.get(result.status, ORANGE)
             draw_hand(frame, hand, f"{result.hand.upper()}: {result.gesture}", colour)
+        for trail in trails:
+            draw_trail(frame, trail)
 
-        draw_panel(frame, result_lines(len(hands), results), (10, 10), min_width=260)
+        draw_panel(frame, result_lines(len(hands), results, last_move), (10, 10), min_width=260)
         draw_panel(frame, [(f"FPS: {fps:.0f}", GREEN)], (frame.shape[1], 10))
         if moves:
             draw_banner(frame, move_text(moves[-1]))
         if self.show_history and history is not None:
             draw_panel(frame, history_lines(history), (frame.shape[1], 50), scale=0.5)
         if self.show_features and features:
-            draw_panel(frame, feature_lines(features), (10, frame.shape[0] - 160), scale=0.45)
+            draw_panel(frame, feature_lines(features, heart), (10, frame.shape[0] - 180), scale=0.45)
         help_text = "q: quit   h: history   f: features   c: clear history"
         draw_panel(frame, [(help_text, GREY)], (10, frame.shape[0]), scale=0.45)
         return frame

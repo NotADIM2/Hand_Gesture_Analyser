@@ -154,20 +154,38 @@ def detect_circle(points: list[Point]) -> str | None:
 ONE_HAND_DETECTORS = (detect_wave, detect_circle, detect_swipe)
 
 
-def is_heart(a: DetectedHand, b: DetectedHand) -> bool:
-    """Index tips touching at the top, thumb tips touching below, wrists apart."""
+@dataclass(frozen=True)
+class HeartMeasurements:
+    """What the heart check looks at, in palm sizes; shown in the feature panel for tuning."""
+    index_gap: float           # between the two index tips
+    thumb_gap: float           # between the two thumb tips
+    wrist_gap: float           # between the two wrists
+    index_above_thumbs: bool
+
+    @property
+    def is_heart(self) -> bool:
+        return (
+            self.index_gap < config.HEART_TOUCH_DISTANCE
+            and self.thumb_gap < config.HEART_TOUCH_DISTANCE
+            and self.wrist_gap > config.HEART_MIN_WRIST_GAP
+            and self.index_above_thumbs
+        )
+
+
+def measure_heart(a: DetectedHand, b: DetectedHand) -> HeartMeasurements:
     palm = (palm_size(a) + palm_size(b)) / 2
     pa, pb = a.image_points[:, :2], b.image_points[:, :2]
-    index_gap = np.linalg.norm(pa[INDEX_TIP] - pb[INDEX_TIP]) / palm
-    thumb_gap = np.linalg.norm(pa[THUMB_TIP] - pb[THUMB_TIP]) / palm
-    wrist_gap = np.linalg.norm(pa[WRIST] - pb[WRIST]) / palm
-    index_above_thumbs = pa[INDEX_TIP, 1] + pb[INDEX_TIP, 1] < pa[THUMB_TIP, 1] + pb[THUMB_TIP, 1]
-    return bool(
-        index_gap < config.HEART_TOUCH_DISTANCE
-        and thumb_gap < config.HEART_TOUCH_DISTANCE
-        and wrist_gap > config.HEART_MIN_WRIST_GAP
-        and index_above_thumbs
+    return HeartMeasurements(
+        index_gap=float(np.linalg.norm(pa[INDEX_TIP] - pb[INDEX_TIP])) / palm,
+        thumb_gap=float(np.linalg.norm(pa[THUMB_TIP] - pb[THUMB_TIP])) / palm,
+        wrist_gap=float(np.linalg.norm(pa[WRIST] - pb[WRIST])) / palm,
+        index_above_thumbs=bool(pa[INDEX_TIP, 1] + pb[INDEX_TIP, 1] < pa[THUMB_TIP, 1] + pb[THUMB_TIP, 1]),
     )
+
+
+def is_heart(a: DetectedHand, b: DetectedHand) -> bool:
+    """Index tips touching at the top, thumb tips touching below, wrists apart."""
+    return measure_heart(a, b).is_heart
 
 
 class MotionAnalyzer:

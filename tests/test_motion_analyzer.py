@@ -156,3 +156,17 @@ def test_heart_needs_wrists_apart():
 def test_count_swings():
     assert ma.count_swings(np.array([0, 1, 0, 1, 0]), 0.5) == 4
     assert ma.count_swings(np.array([0, 0.1, 0, 0.1]), 0.5) == 0
+
+
+def test_heart_measurements_for_tuning():
+    m = ma.measure_heart(*heart_pose())
+    assert m.index_gap < 0.1 and m.thumb_gap < 0.1 and m.wrist_gap > 1.0 and m.index_above_thumbs
+    assert m.is_heart
+
+
+def test_heart_tolerates_rough_fingertips():
+    # Touching fingertips are rough in MediaPipe: tips half a palm apart still count.
+    a, b = heart_pose()
+    a.image_points[ma.INDEX_TIP, 0] -= 0.5 * PALM
+    a.image_points[ma.THUMB_TIP, 0] -= 0.5 * PALM
+    assert ma.is_heart(a, b)
