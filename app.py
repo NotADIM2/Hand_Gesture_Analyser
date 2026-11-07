@@ -6,7 +6,8 @@
 
 It works in one mode at a time, picked with the number keys in the window:
 1 poses (default), 2 moving gestures, 3 draw shapes (recognised when the pen lifts),
-4 sign letters (spoken aloud), 5 hand exercises, 6 sign words (spoken aloud). Gesture control (m) works in modes
+4 sign letters (spoken aloud), 5 hand exercises, 6 sign words (made into sentences
+and spoken), 7 sign practice (asks for signs and keeps score). Gesture control (m) works in modes
 1 and 2 and is paused in the others, so the same gestures don't press keys.
 New poses can be taught live (t); --benchmark times every stage of the pipeline.
 
@@ -35,13 +36,15 @@ from gesture_analyzer import GestureAnalyzer, RuleBasedClassifier
 from hand_detector import HandDetector
 from ml_classifier import KNNClassifier
 from motion_analyzer import MotionAnalyzer, measure_heart
+from phrases import PhraseBuilder
 from sign_language import SignSpeller
+from sign_practice import SignPractice
 from sign_words import SignWords
 from speech import Speaker
 from teach import Teacher, TaughtGestures, WithTaughtGestures
 from ui import (
-    DRAW, EXERCISE, KEY_CLEAR, KEY_CONTROL, KEY_DISMISS, KEY_ESC, KEY_QUIT, KEY_SAVE, KEY_TEACH, MODE_KEYS, MODE_TITLES,
-    MOTION, POSES, SHOWS_POSES, SIGN, WORDS, FPSCounter, HistoryView, Interface, draw_alert,
+    DRAW, EXERCISE, KEY_CLEAR, KEY_CONTROL, KEY_DISMISS, KEY_ESC, KEY_QUIT, KEY_SKIP, KEY_SAVE, KEY_TEACH, MODE_KEYS, MODE_TITLES,
+    MOTION, POSES, PRACTICE, SHOWS_POSES, SIGN, WORDS, FPSCounter, HistoryView, Interface, draw_alert,
 )
 
 CONTROL_MODES = (POSES, MOTION)   # modes in which gesture control may press keys
@@ -74,9 +77,15 @@ def status_lines(controller: GestureController, password: GesturePassword, mode:
         lines.append("Palm = space, thumbs up = say it, swipe left = delete, wave = clear")
     if mode == WORDS:
         lines.append("Sign a word: HELLO, THANK YOU, YES, NO, HELP, STOP ... (list in the README)")
-        lines.append("One-hand signs with only that hand in view; each word is spoken")
+        lines.append("One-hand signs with only that hand in view; pause to finish a sentence")
         lines.append(f"{' or '.join(config.ALERT_WORDS)} raises an emergency alert (x dismisses)")
     return lines
+
+
+def save_practice(db: GestureDatabase | None, practice: SignPractice, now: float, session_id: str) -> None:
+    """Store a practice round with the exercise results (it shows in the session report)."""
+    if db is not None and practice.tries:
+        db.insert_exercise(practice.name, practice.correct, now - practice.started_at, practice.summary(), session_id)
 
 
 def save_snapshot(frame) -> Path:
@@ -106,9 +115,9 @@ def run(
     person: str | None = None,
     speak: bool = True,
 ) -> int:
-    session_id = uuid.uuid4().hex[:8]
     camera = Camera(index=camera_index)
-    detector = db = ui = alarm = None
+    detector = db = ui = alarm = practice = None
+    mode, session_id = POSES, uuid.uuid4().hex[:8]
     try:
         camera.open()
         detector = HandDetector()
@@ -126,10 +135,11 @@ def run(
         canvas = AirCanvas()
         speller = SignSpeller()
         signer = SignWords()
+        phrases = PhraseBuilder()
+        practice = SignPractice()
         coach = ExerciseCoach()
         speaker = Speaker(enabled=speak)
         alarm = Alarm(sound=speak)
-        mode = POSES
         last_action, last_action_at = None, 0.0
         ui = Interface(fullscreen=fullscreen)
         fps = FPSCounter()
@@ -192,11 +202,25 @@ def run(
                 if signed:
                     last_action, last_action_at = signed, now
                     speaker.say(signed.lower())
+                    phrases.add(signed, now)
+                sentence = phrases.update(now)
+                if sentence:
+                    print(f"Signed: {sentence}")
+                    if phrases.is_phrase:   # words joined into something new: say it as a sentence
+                        speaker.say(sentence)
                 if alarm.is_alert(signed):
                     alarm.raise_alert(signed, now)
                     print(f"ALERT: {signed} signed at {alarm.raised_at:%H:%M:%S}")
                     if db is not None:
                         db.insert(f"ALERT {signed}", hands[0].handedness if len(hands) == 1 else "Both", session_id)
+            elif mode == PRACTICE:
+                message = practice.check(signer.update(hands, features, frame.shape, now), now)
+                if message:
+                    last_action, last_action_at = message, now
+                    if message == "CORRECT!":
+                        speaker.say(f"correct. next, {practice.target.lower()}")
+                    else:
+                        speaker.say(message.lower())
             elif mode == EXERCISE:
                 for message in coach.update(hands, features, now):
                     last_action, last_action_at = message, now
@@ -234,8 +258,10 @@ def run(
             status = status_lines(controller, password, mode)
             if mode == EXERCISE:
                 status += coach.status_lines()
-            if mode == WORDS:
+            if mode in (WORDS, PRACTICE):
                 status.append(f"Seen: {signer.seen or 'no hand'}")
+            if mode == PRACTICE:
+                status += practice.status_lines()
             if mode == DRAW:
                 pen = f"Pen: {'DOWN' if canvas.pen_down else 'UP'}"
                 status.append(pen + (f"   Last stroke: {canvas.last_stroke}" if canvas.last_stroke else ""))
@@ -249,8 +275,11 @@ def run(
                 heart=measure_heart(*hands) if len(hands) == 2 and ui.show_features else None,
                 status=status,
                 action=last_action if now - last_action_at < config.CONTROL_DISPLAY_SECONDS else None,
-                sign_text=speller.text if mode == SIGN else signer.text if mode == WORDS else None,
+                # Sign words: the words being signed (with a cursor), then the finished sentence.
+                sign_text=speller.text if mode == SIGN else " ".join(phrases.words) if mode == WORDS and phrases.words else None,
                 mode=mode,
+                prompt=(f"SIGN: {practice.target}" if mode == PRACTICE
+                        else phrases.sentence if mode == WORDS and not phrases.words else None),
             )
             alarm.update(now)
             if alarm.active(now):
@@ -289,13 +318,23 @@ def run(
                 # Pressing the current mode's key again goes back to poses.
                 new_mode = POSES if wanted == mode else wanted
                 if new_mode != mode:
+                    if mode == PRACTICE:
+                        save_practice(db, practice, now, session_id)
+                        print(f"Sign practice: {practice.summary()}")
                     mode = new_mode
                     canvas.clear()
                     speller.clear()
                     signer.clear()
+                    phrases.clear()
                     last_action, last_action_at = MODE_TITLES[mode], now
                     if mode == EXERCISE:
                         speaker.say(coach.start())
+                    if mode == PRACTICE:
+                        speaker.say(practice.start(now).replace("SIGN: ", "sign ").lower())
+            if key == KEY_SKIP and mode == PRACTICE:
+                message = practice.skip(now)
+                last_action, last_action_at = message, now
+                speaker.say(message.replace("SIGN: ", "sign ").lower())
             if key == KEY_DISMISS:
                 alarm.dismiss()
             if key == KEY_SAVE:
@@ -317,6 +356,9 @@ def run(
         camera.release()
         if alarm is not None:
             alarm.dismiss()
+        if mode == PRACTICE and practice is not None:
+            save_practice(db, practice, time.monotonic(), session_id)
+            print(f"Sign practice: {practice.summary()}")
         if detector is not None:
             detector.close()
         if db is not None:

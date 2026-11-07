@@ -263,3 +263,6 @@ ALERT_SECONDS = 6.0                # how long the red screen and siren last (x d
 ALERT_FLASH_HZ = 2.0               # red screen flashes this many times a second
 ALERT_TONES = (880, 1320)          # siren: two alternating tones (Hz)
 ALERT_BEEP_MS = 250                # length of each tone
+
+# --- Phrases and practice (phrases.py, sign_practice.py) ---------------------------
+PHRASE_PAUSE_SECONDS = 2.5         # a pause this long after a word finishes the phrase

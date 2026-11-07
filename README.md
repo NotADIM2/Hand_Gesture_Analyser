@@ -14,7 +14,7 @@ machine-learning model.
 
 | | |
 |---|---|
-| **One mode at a time** | Number keys 1–6 switch between poses, moving gestures, drawing shapes, sign letters, exercises and sign words, so the screen only shows what you're doing |
+| **One mode at a time** | Number keys 1–7 switch between poses, moving gestures, drawing shapes, sign letters, exercises, sign words and sign practice, so the screen only shows what you're doing |
 | **25 gestures** | 17 hand poses, 6 moving gestures (swipes, wave, circle), 2 two-hand gestures (clap, heart) |
 | **Teach new poses** | Press `t`, name a pose, show it for 2 seconds: it's recognised from then on, and committing its file shares it with everyone |
 | **Finger counting** | Fingers up on one or both hands, 0–10, in the poses mode |
@@ -23,12 +23,14 @@ machine-learning model.
 | **Draw shapes** | Pinch to draw in the air; circles, triangles, squares, rectangles and lines are recognised and redrawn cleanly |
 | **Sign letters, spoken** | Spell words with ASL fingerspelling letters; each finished word is spoken aloud, offline |
 | **Emergency alert** | Signing DANGER or HELP sounds a siren and flashes the screen red, with the time; logged in the history |
-| **Sign words, spoken** | 23 basic sign-language words (HELLO, THANK YOU, YES, NO, HELP, STOP, ...) from hand shape and movement, built into a sentence and spoken |
+| **Sign words, spoken** | 23 basic sign-language words (HELLO, THANK YOU, YES, NO, HELP, STOP, ...) from hand shape and movement, spoken aloud |
+| **Signs into sentences** | Words signed in a row become natural English: ME HELP → "I need help.", YOU GOOD → "Are you good?" |
+| **Sign practice** | The app asks for a sign, shows how to make it, checks yours and keeps score and streak; results in the session report |
 | **Hand exercise coach** | Guided routine (open/close, thumb touches, count to five) with repetition counting, timing, range of motion and progress in the report |
 | **History and reports** | Every gesture saved to SQLite; HTML session report with charts; accuracy report per gesture and per person |
 | **Honest feedback** | Shows how many of the last 10 frames agree, never a made-up confidence % |
 | **Speed benchmark** | `--benchmark` times every pipeline stage and saves a table of averages |
-| **Tested** | 350+ automated tests, no webcam needed, run on every push by GitHub Actions |
+| **Tested** | 370+ automated tests, no webcam needed, run on every push by GitHub Actions |
 
 ## Demo in 5 minutes
 
@@ -55,13 +57,16 @@ The top left of the window always says which mode you're in (`MODE 1: POSES`).
 6. **Sign words** (key `6`): with one hand, point at the camera (**YOU**), make a
    flat hand and move it straight down (**THANK YOU**); with both hands, rest a
    thumbs-up on a flat hand and lift both (**HELP**). Each word is spoken and added
-   to the sentence on screen. **HELP** (or **DANGER**) also raises the emergency
-   alert: a siren and a flashing red screen; press `x` to dismiss it.
-7. **Control**: back in mode 1, press `m`, show **FIST → PEACE → THUMBS UP** to
+   to the sentence on screen. Sign **ME** then **HELP** and pause: it says *"I need
+   help."* **HELP** (or **DANGER**) also raises the emergency alert: a siren and a
+   flashing red screen; press `x` to dismiss it.
+7. **Sign practice** (key `7`): the app asks for a sign (`SIGN: WAIT`) with a hint;
+   sign it to score, `n` skips. Watch the score and streak.
+8. **Control**: back in mode 1, press `m`, show **FIST → PEACE → THUMBS UP** to
    unlock, click a PowerPoint window and swipe through slides.
-8. **Teach**: show your pinky alone (UNKNOWN), press `t`, type `PINKY PROMISE`,
+9. **Teach**: show your pinky alone (UNKNOWN), press `t`, type `PINKY PROMISE`,
    Enter, hold the pose: from now on it's recognised.
-9. **Results**: quit, then `python scripts/session_report.py` and open
+10. **Results**: quit, then `python scripts/session_report.py` and open
    `reports/session_report.html`; `python scripts/evaluate.py` for accuracy, rules vs ML.
 
 ![Session report: most used gestures, hands used and gestures per session](docs/session_report.png)
@@ -94,6 +99,8 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Speech | `speech.py` | Speaks text with the system's offline voice, in the background |
 | Sign letters | `sign_language.py` | Poses → ASL fingerspelling letters, spelled into words |
 | Emergency alert | `alarm.py` | Siren and red screen when DANGER or HELP is signed |
+| Phrases | `phrases.py` | Signed words → English sentences (ME HELP → "I need help.") |
+| Sign practice | `sign_practice.py` | Asks for signs, checks them, keeps score and streak |
 | Sign words | `sign_words.py` | Hand shape + movement over the last second → 23 basic sign-language words |
 | ML classifier | `ml_classifier.py` | k-nearest-neighbours alternative to the rules (`--classifier ml`) |
 | Session report | `scripts/session_report.py` | History database → HTML page with charts |
@@ -143,16 +150,18 @@ never pile up on the screen together:
 | `3` | **Draw shapes** | Your drawing; shapes are recognised when you lift the pen |
 | `4` | **Sign letters** | Pose labels and the word being spelled (spoken aloud) |
 | `5` | **Exercises** | The exercise coach: current exercise, instruction, repetitions |
-| `6` | **Sign words** | The sentence of signed words (each spoken aloud) |
+| `6` | **Sign words** | The words being signed, then the sentence they make (spoken aloud) |
+| `7` | **Sign practice** | The sign to make, how to make it, score and streak |
 
 Pressing the current mode's key again goes back to poses. `d`, `a` and `e` still work
 for modes 3, 4 and 5. The history saves what the current mode is about: poses in 1
 and 4, moving gestures in 2, drawn shapes in 3 (as `DRAWN CIRCLE`, ...), exercise
-results in 5, signed words in 6 (as `SIGN HELLO`, ...).
+results in 5, signed words in 6 (as `SIGN HELLO`, ...), practice results in 7 (with
+the exercise results).
 
 | Key | Action |
 |---|---|
-| `1`–`6` | Switch mode (see above) |
+| `1`–`7` | Switch mode (see above) |
 | `q` / `Esc` | Quit (closing the window also works) |
 | `h` | Show/hide gesture history |
 | `f` | Show/hide the feature panel (for tuning) |
@@ -162,6 +171,7 @@ results in 5, signed words in 6 (as `SIGN HELLO`, ...).
 | `t` | Teach a new pose (type a name, Enter; Esc cancels) |
 | `w` | Full screen on/off (Esc also leaves full screen) |
 | `x` | Dismiss the emergency alert |
+| `n` | Sign practice: skip to the next word |
 
 History is saved in `data/gesture_history.db`, one row each time a new gesture
 becomes stable (not once per frame).
@@ -432,13 +442,51 @@ if a sign isn't recognised you can check the hand shape and height it needs.
 | DANGER | 2 | Two fists together, one sliding up the other repeatedly |
 
 A word is said once even while the sign is held, and there is a short pause (1 s)
-before the next one. Each sign is tested as a short synthetic video, with landmark
+before the next one.
+
+**Into sentences.** Words signed one after another make a phrase. When you pause
+(2.5 s), the phrase is turned into an English sentence, shown on screen, printed in
+the terminal and, if it's more than the words one by one, spoken. Sign languages
+have their own grammar, so this follows a table of common phrases (`phrases.py`),
+longest match first:
+
+| Signed | Sentence |
+|---|---|
+| ME HELP | I need help. |
+| HELP ME | Please help me. |
+| YOU HELP ME | Can you help me? |
+| YOU GOOD | Are you good? |
+| ME SORRY | I am sorry. |
+| ME WATER PLEASE | I would like some water, please. |
+| WHERE YOU GO | Where are you going? |
+| WHO YOU | Who are you? |
+| ME GO HOME | I am going home. |
+| NO THANK YOU | No, thank you. |
+| HELLO ME HELP | Hello! I need help. |
+
+There are 38 phrases in all; anything else is said word by word ("Hello!"). Add your
+own to `PHRASES` in `phrases.py`. Each sign is tested as a short synthetic video, with landmark
 jitter, the left hand and faster or slower signing, in `tests/test_sign_words.py`.
 The thresholds are `SIGN_*` in `config.py`.
 
+### Sign practice
+
+Press `7`. The app picks a sign (`SIGN: WAIT`), shows how to make it (`HOW: both flat
+hands still, fingers wiggling`) and says it aloud. Sign it:
+
+- right: `CORRECT!`, a point, your streak goes up and the next word comes,
+- a different sign: `THAT WAS YES, TRY AGAIN` (the streak starts again),
+- `n` skips the word.
+
+The screen shows the score (correct of tried) and the streak with your best. All 23
+words come once, in a shuffled order, before any repeats. When you leave the mode the
+round is saved with the exercise results, so the session report's **Hand exercises**
+section shows practice over time (signs correct, best streak, seconds per correct
+sign). Alerts don't go off in practice, so practising DANGER is quiet.
+
 ### Emergency alert
 
-Signing **DANGER** or **HELP** in the sign words mode raises an alert, so someone who
+Signing **DANGER** or **HELP** in the sign words mode (not in practice) raises an alert, so someone who
 can't call out can still get attention:
 
 - a siren (two alternating tones from the computer's own speaker) for 6 seconds,

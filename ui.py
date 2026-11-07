@@ -8,7 +8,8 @@ shows what that mode is about:
     3 DRAW SHAPES      pinch to draw; drawn shapes are recognised
     4 SIGN LETTERS     poses spell words
     5 EXERCISES        the hand exercise coach
-    6 SIGN WORDS       basic sign-language words, spoken aloud
+    6 SIGN WORDS       basic sign-language words, made into sentences and spoken
+    7 SIGN PRACTICE    the app asks for a sign, you sign it, it keeps score
 
 Draws onto OpenCV frames: hand skeletons, the result panel, the mode's output, an
 optional gesture history panel and an optional feature panel for tuning thresholds.
@@ -53,19 +54,21 @@ KEY_TEACH = ord("t")
 KEY_FULLSCREEN = ord("w")
 KEY_EXERCISE = ord("e")
 KEY_DISMISS = ord("x")
+KEY_SKIP = ord("n")
 KEY_ESC = 27
 
-POSES, MOTION, DRAW, SIGN, EXERCISE, WORDS = "poses", "motion", "draw", "sign", "exercise", "words"
-MODES = (POSES, MOTION, DRAW, SIGN, EXERCISE, WORDS)    # in key order: 1 to 6
-MODE_TITLES = {POSES: "POSES", MOTION: "MOVING GESTURES", DRAW: "DRAW SHAPES",
-               SIGN: "SIGN LETTERS", EXERCISE: "EXERCISES", WORDS: "SIGN WORDS"}
+POSES, MOTION, DRAW, SIGN, EXERCISE, WORDS, PRACTICE = (
+    "poses", "motion", "draw", "sign", "exercise", "words", "practice")
+MODES = (POSES, MOTION, DRAW, SIGN, EXERCISE, WORDS, PRACTICE)    # in key order: 1 to 7
+MODE_TITLES = {POSES: "POSES", MOTION: "MOVING GESTURES", DRAW: "DRAW SHAPES", SIGN: "SIGN LETTERS",
+               EXERCISE: "EXERCISES", WORDS: "SIGN WORDS", PRACTICE: "SIGN PRACTICE"}
 # Number keys pick a mode; the old letter keys still work (d, a, e).
 MODE_KEYS = {ord(str(i)): mode for i, mode in enumerate(MODES, start=1)}
 MODE_KEYS.update({KEY_DRAW: DRAW, KEY_SIGN: SIGN, KEY_EXERCISE: EXERCISE})
 SHOWS_POSES = (POSES, SIGN)   # modes that label hand poses
 
 HELP_LINES = (
-    "1: poses  2: moving gestures  3: draw shapes  4: sign letters  5: exercises  6: sign words",
+    "1: poses  2: moving gestures  3: draw shapes  4: sign letters  5: exercises  6: sign words  7: practice",
     "m: control  t: teach  h: history  f: features  c: clear history  s: save  w: full screen  q: quit",
 )
 
@@ -304,6 +307,7 @@ class Interface:
         action: str | None = None,
         sign_text: str | None = None,
         mode: str = POSES,
+        prompt: str | None = None,
     ) -> np.ndarray:
         # Only the current mode's output is drawn: pose labels in the pose modes,
         # trails and the move banner in the moving gestures mode.
@@ -327,6 +331,8 @@ class Interface:
             draw_banner(frame, f"> {action}", ORANGE, lift=110)
         if sign_text is not None:
             draw_banner(frame, f"{sign_text}_", WHITE, scale=1.3, lift=155)
+        if prompt:
+            draw_banner(frame, prompt, YELLOW, scale=1.3, lift=155)
         if self.show_history and history is not None:
             draw_panel(frame, history_lines(history), (frame.shape[1], 50), scale=0.5)
         if self.show_features and features:

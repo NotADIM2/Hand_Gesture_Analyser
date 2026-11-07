@@ -112,12 +112,12 @@ def test_each_mode_shows_only_its_own_output():
 
 
 def test_number_keys_pick_modes_and_letters_still_work():
-    assert [ui.MODE_KEYS[ord(str(i))] for i in range(1, 7)] == [
-        ui.POSES, ui.MOTION, ui.DRAW, ui.SIGN, ui.EXERCISE, ui.WORDS]
+    assert [ui.MODE_KEYS[ord(str(i))] for i in range(1, 8)] == [
+        ui.POSES, ui.MOTION, ui.DRAW, ui.SIGN, ui.EXERCISE, ui.WORDS, ui.PRACTICE]
     assert ui.MODE_KEYS[ord("d")] == ui.DRAW and ui.MODE_KEYS[ord("a")] == ui.SIGN
     assert ui.MODE_KEYS[ord("e")] == ui.EXERCISE
     keys_in_help = " ".join(ui.HELP_LINES)
-    assert all(f"{i}: " in keys_in_help for i in range(1, 7))
+    assert all(f"{i}: " in keys_in_help for i in range(1, 8))
 
 
 def test_heart_readout_in_feature_panel():

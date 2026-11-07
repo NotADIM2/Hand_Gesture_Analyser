@@ -36,6 +36,33 @@ STOP, WAIT, GO, DANGER = "STOP", "WAIT", "GO", "DANGER"
 WORDS = (HELLO, GOODBYE, PLEASE, THANK_YOU, SORRY, YES, NO, HELP, WHO, WHAT, WHERE, GOOD, BAD,
          ME, YOU, SAME, MORE, HOME, WATER, STOP, WAIT, GO, DANGER)
 
+# How to sign each word for this app (shown in the practice mode; the README has the same).
+HINTS = {
+    HELLO: "flat hand at your forehead, then straight out to the side",
+    GOODBYE: "open hand up, fingers fold down and up together",
+    PLEASE: "flat hand rubbing a circle on your chest",
+    THANK_YOU: "flat hand from your chin straight down",
+    SORRY: "fist rubbing a circle on your chest",
+    YES: "fist nodding forward and back",
+    NO: "index and middle fingers snap onto the thumb, twice",
+    WHO: "thumb and index out (L), index bends and straightens",
+    WHAT: "both flat hands shaking side to side",
+    WHERE: "index finger up, shaken side to side",
+    GOOD: "two hands: flat hand comes down onto the other",
+    BAD: "flat hand from your lips down, turning the palm over",
+    ME: "point at your own chest, hold still",
+    YOU: "point at the camera, hold still",
+    SAME: "thumb and pinky out (Y), side to side",
+    MORE: "both hands: fingertips on thumbs, tap them together",
+    HOME: "fingertips on the thumb, move up your cheek",
+    WATER: "index, middle and ring up (W), tap small up and down",
+    STOP: "two hands: edge of one hand chops onto the other palm",
+    WAIT: "both flat hands still, fingers wiggling",
+    GO: "both index fingers thrust forward together",
+    DANGER: "two fists, one slides up the other again and again",
+    HELP: "two hands: thumbs-up fist on a flat hand, lift both",
+}
+
 # Hand shapes used by the signs.
 FLAT, FIST, INDEX, Y_SHAPE, W_SHAPE, FLAT_O, OTHER = "flat", "fist", "index", "Y", "W", "flat O", "other"
 SHAPE_NAMES = {FLAT: "flat hand", FIST: "fist", INDEX: "index finger", Y_SHAPE: "Y shape",
