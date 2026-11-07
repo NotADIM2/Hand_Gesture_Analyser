@@ -24,8 +24,9 @@ from camera import Camera, CameraError, to_rgb
 from controller import GestureController, GesturePassword
 from database import GestureDatabase
 from feature_extractor import extract_features
-from gesture_analyzer import GestureAnalyzer
+from gesture_analyzer import GestureAnalyzer, RuleBasedClassifier
 from hand_detector import HandDetector
+from ml_classifier import KNNClassifier
 from motion_analyzer import MotionAnalyzer, measure_heart
 from sign_language import SignSpeller
 from ui import KEY_CLEAR, KEY_CONTROL, KEY_DRAW, KEY_QUIT, KEY_SAVE, KEY_SIGN, FPSCounter, HistoryView, Interface
@@ -67,6 +68,7 @@ def run(
     camera_index: int = config.CAMERA_INDEX,
     db_path: Path | None = config.DB_PATH,
     control: str | None = None,
+    classifier: str = "rules",
 ) -> int:
     session_id = uuid.uuid4().hex[:8]
     camera = Camera(index=camera_index)
@@ -75,7 +77,7 @@ def run(
         camera.open()
         detector = HandDetector()
         db = GestureDatabase(db_path) if db_path is not None else None
-        analyzer = GestureAnalyzer()
+        analyzer = GestureAnalyzer(KNNClassifier.load() if classifier == "ml" else RuleBasedClassifier())
         motion = MotionAnalyzer()
         recent_moves = []
         last_move = None
@@ -89,7 +91,7 @@ def run(
         fps = FPSCounter()
         history = HistoryView()
         history_loaded_at = 0.0
-        print(f"Running (session {session_id}). Press q in the video window to quit.")
+        print(f"Running (session {session_id}, {classifier} classifier). Press q in the video window to quit.")
         if controller.enabled:
             print(f"Control mode: {controller.profile}. Show the gesture password, then click the window to control.")
 
@@ -195,8 +197,15 @@ def main(argv: list[str] | None = None) -> int:
         "--control", choices=list(config.CONTROL_PROFILES),
         help="start with gesture control on, using this profile (press m in the window to switch)",
     )
+    parser.add_argument(
+        "--classifier", choices=("rules", "ml"), default="rules",
+        help="recognise poses with geometric rules or the trained k-NN model (default: %(default)s)",
+    )
     args = parser.parse_args(argv)
-    return run(camera_index=args.camera, db_path=None if args.no_history else args.db, control=args.control)
+    return run(
+        camera_index=args.camera, db_path=None if args.no_history else args.db,
+        control=args.control, classifier=args.classifier,
+    )
 
 
 if __name__ == "__main__":

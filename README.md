@@ -7,7 +7,8 @@ hands with MediaPipe, recognises 17 hand poses plus 8 moving and two-hand
 gestures (25 in total) with geometric rules, keeps a gesture history in SQLite, and
 can control PowerPoint or your music with gestures (behind a gesture password). It
 can also draw in the air, spell words with sign-language letters, and measure its
-own accuracy on your team's recorded hands.
+own accuracy on your team's recorded hands, comparing the rules with a trained
+machine-learning model.
 
 ## Architecture
 
@@ -31,6 +32,7 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Result / UI | `ui.py` | Skeleton, result panel, history and feature panels, keys |
 | Air drawing | `air_draw.py` | Pinch to draw on the video, fist to clear |
 | Sign letters | `sign_language.py` | Poses → ASL fingerspelling letters, spelled into words |
+| ML classifier | `ml_classifier.py` | k-nearest-neighbours alternative to the rules (`--classifier ml`) |
 | Accuracy report | `scripts/evaluate.py` | Per-gesture / per-person accuracy and confusion on recorded hands |
 | Entry point | `app.py` | Connects the modules in pipeline order |
 
@@ -56,6 +58,7 @@ python app.py                 # default webcam
 python app.py --camera 1      # another webcam
 python app.py --no-history    # don't save to the database
 python app.py --control presentation   # start with gesture control on (or: media)
+python app.py --classifier ml           # recognise poses with the trained model instead of rules
 ```
 
 | Key | Action |
@@ -198,6 +201,32 @@ confusion table (e.g. "PEACE recognised as TWO FINGERS: 3 times") that shows whi
 thresholds in `config.py` to tune. Commit `tests/fixtures/recorded_hands.json` and the
 report: `pytest` then also checks that the rules get at least 80% of the recorded
 samples right.
+
+## Rules vs machine learning
+
+`ml_classifier.py` is a k-nearest-neighbours (k-NN) model. It sees the same hand
+measurements as the rules (extended fingers, joint angles, distances, directions) and
+labels a hand with the gesture most common among the 5 most similar hands it was
+trained on; a hand unlike anything it has seen is UNKNOWN.
+
+```powershell
+python scripts/train_classifier.py      # train and save models/gesture_knn.npz
+python app.py --classifier ml           # use it live
+python scripts/evaluate.py              # accuracy: rules vs ML side by side
+```
+
+It is trained on synthetic hands (randomly tilted, rotated, jittered and with looser
+or tighter fingers) plus every real recorded sample, so recording more hands and
+training again improves it. The comparison in the accuracy report is
+**leave-one-out**: for each real sample the model is trained on everything else, so
+it is never graded on a hand it has already seen.
+
+| | Rules | k-NN |
+|---|---|---|
+| Needs training data | No | Yes (synthetic + recorded) |
+| Explains its answer | Yes: "all five fingers extended" | By its nearest examples |
+| New gesture | Write a rule | Record examples |
+| Gets better with more recordings | Only by tuning thresholds | Automatically, after training again |
 
 ## Design decisions
 

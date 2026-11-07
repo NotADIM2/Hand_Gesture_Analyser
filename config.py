@@ -13,6 +13,8 @@ MODEL_URL = (
     "hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 )
 DB_PATH = BASE_DIR / "data" / "gesture_history.db"
+# Trained k-NN classifier (python scripts/train_classifier.py).
+ML_MODEL_PATH = BASE_DIR / "models" / "gesture_knn.npz"
 
 # --- Webcam (camera.py) --------------------------------------------------------
 CAMERA_INDEX = 0
@@ -55,6 +57,14 @@ STABILITY_MIN_AGREEMENT = 7
 # MediaPipe sometimes loses a hand for a frame or two. Remember it this many frames
 # (~0.5 s at 30 FPS) so a brief dropout doesn't log the same gesture again.
 HAND_LOST_GRACE_FRAMES = 15
+
+# --- Machine-learning classifier (ml_classifier.py) ---------------------------
+# Neighbours that vote on each hand's label.
+ML_K = 5
+# A hand further than this from every training example is UNKNOWN.
+ML_MAX_DISTANCE = 0.6
+# Augmented synthetic hands per gesture in the training set.
+ML_SYNTHETIC_PER_GESTURE = 40
 
 # --- Moving and two-hand gestures (motion_analyzer.py) -----------------------
 # One-hand positions are in frame widths (1.0 = the full width of the frame).

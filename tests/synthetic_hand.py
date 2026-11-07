@@ -20,18 +20,19 @@ THUMB_POSES = {
 }
 
 
-def make_hand(extended=(), thumb="folded", spread=0.0, bends=None) -> np.ndarray:
+def make_hand(extended=(), thumb="folded", spread=0.0, bends=None, curl=1.0) -> np.ndarray:
     """Hand with the given non-thumb fingers extended.
 
     spread: degrees the index and middle fingers lean apart (each moves half).
     bends: optional finger name -> (MCP, PIP, DIP) bend, overriding straight/curled.
+    curl: how tightly folded fingers are bent (1 = fist, ~0.6 = loosely folded).
     """
     pts = np.zeros((21, 3))
     lean = {"index": -spread / 2, "middle": spread / 2}
     for name, base in FINGER_BASE.items():
         mcp = np.array([MCP_X[name], MCP_Y[name], 0.0])
         pts[base] = mcp
-        finger_bends = (0.0, 0.0, 0.0) if name in extended else CURL
+        finger_bends = (0.0, 0.0, 0.0) if name in extended else tuple(c * curl for c in CURL)
         finger_bends = (bends or {}).get(name, finger_bends)
         side = np.radians(lean.get(name, 0.0))
         total = 0.0
@@ -70,47 +71,47 @@ def rotate_3d(pts: np.ndarray, x_deg: float, y_deg: float) -> np.ndarray:
 ALL_FINGERS = ("index", "middle", "ring", "pinky")
 
 
-def gesture_hand(name: str) -> np.ndarray:
-    """A synthetic hand showing one of the recognised gestures."""
+def gesture_hand(name: str, **options) -> np.ndarray:
+    """A synthetic hand showing one of the recognised gestures; options go to make_hand (e.g. curl)."""
     if name == "OPEN PALM":
-        return make_hand(ALL_FINGERS, thumb="out", spread=10)
+        return make_hand(ALL_FINGERS, thumb="out", spread=10, **options)
     if name == "FIST":
-        return make_hand()
+        return make_hand(**options)
     if name == "THUMBS UP":
-        return rotate_in_image(make_hand(thumb="side"), 90)    # thumb now points up
+        return rotate_in_image(make_hand(thumb="side", **options), 90)    # thumb now points up
     if name == "THUMBS DOWN":
-        return rotate_in_image(make_hand(thumb="side"), -90)   # thumb now points down
+        return rotate_in_image(make_hand(thumb="side", **options), -90)   # thumb now points down
     if name == "ONE FINGER":
-        return make_hand(("index",))
+        return make_hand(("index",), **options)
     if name == "TWO FINGERS":
-        return make_hand(("index", "middle"), spread=0)
+        return make_hand(("index", "middle"), spread=0, **options)
     if name == "PEACE":
-        return make_hand(("index", "middle"), spread=30)
+        return make_hand(("index", "middle"), spread=30, **options)
     if name == "THREE FINGERS":
-        return make_hand(("index", "middle", "ring"))
+        return make_hand(("index", "middle", "ring"), **options)
     if name == "OK SIGN":
-        pts = make_hand(("middle", "ring", "pinky"))
+        pts = make_hand(("middle", "ring", "pinky"), **options)
         touch = np.array([-0.45, -1.05, -0.35])
         pts[4] = touch                      # thumb tip
         pts[8] = touch + [0.05, 0.0, 0.0]   # index tip, just touching
         return pts
     if name == "FOUR FINGERS":
-        return make_hand(ALL_FINGERS)
+        return make_hand(ALL_FINGERS, **options)
     if name == "ROCK":
-        return make_hand(("index", "pinky"))
+        return make_hand(("index", "pinky"), **options)
     if name == "CALL ME":
-        return make_hand(("pinky",), thumb="out")
+        return make_hand(("pinky",), thumb="out", **options)
     if name == "I LOVE YOU":
-        return make_hand(("index", "pinky"), thumb="out")
+        return make_hand(("index", "pinky"), thumb="out", **options)
     if name == "L SIGN":
-        return make_hand(("index",), thumb="out")
+        return make_hand(("index",), thumb="out", **options)
     if name == "POINT LEFT":
-        return rotate_in_image(make_hand(("index",)), -90)    # index now points left
+        return rotate_in_image(make_hand(("index",), **options), -90)    # index now points left
     if name == "POINT RIGHT":
-        return rotate_in_image(make_hand(("index",)), 90)     # index now points right
+        return rotate_in_image(make_hand(("index",), **options), 90)     # index now points right
     if name == "PINCH":
         # Index half bent (not curled into a fist), thumb tip meeting its tip.
-        pts = make_hand(bends={"index": (30.0, 50.0, 30.0)})
+        pts = make_hand(bends={"index": (30.0, 50.0, 30.0)}, **options)
         pts[4] = pts[8] + [-0.05, 0.0, 0.0]
         return pts
     raise ValueError(name)
