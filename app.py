@@ -212,6 +212,9 @@ def run(
             status = status_lines(controller, password, mode)
             if mode == EXERCISE:
                 status += coach.status_lines()
+            if mode == DRAW:
+                pen = f"Pen: {'DOWN' if canvas.pen_down else 'UP'}"
+                status.append(pen + (f"   Last stroke: {canvas.last_stroke}" if canvas.last_stroke else ""))
             if teacher.active:
                 status.append(teacher.status_line(now))
             if benchmark:

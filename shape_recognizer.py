@@ -14,6 +14,8 @@ with the smallest rectangle and the smallest triangle that fit around it: a draw
 rectangle fills its box, a drawn triangle fills its triangle. A circle is checked
 first, by roundness (circularity 4*pi*area / perimeter^2: 1 for a circle, about 0.85
 for a hand-drawn square). A stroke much longer than its hull is a scribble.
+
+analyse() also says why a stroke is not a shape, so the draw mode can show it.
 """
 from dataclasses import dataclass
 
@@ -32,15 +34,25 @@ class Shape:
     points: np.ndarray   # the clean outline to draw: polygon corners, line ends, or circle as (cx, cy, r)
 
 
+@dataclass(frozen=True)
+class Analysis:
+    shape: Shape | None
+    reason: str          # the shape's name, or why the stroke isn't one
+
+
 def recognize(stroke) -> Shape | None:
+    return analyse(stroke).shape
+
+
+def analyse(stroke) -> Analysis:
     pts = np.asarray(stroke, dtype=np.float32).reshape(-1, 2)
     if len(pts) < 6:
-        return None
+        return Analysis(None, "too short")
     # Hand shake makes a stroke look longer than it is, so lengths are measured on a
     # lightly smoothed copy; corners and roundness use the stroke as drawn.
     path = float(np.linalg.norm(np.diff(_smooth(pts), axis=0), axis=1).sum())
     if path < config.SHAPE_MIN_SIZE:
-        return None  # too small to be deliberate
+        return Analysis(None, "too small")
     gap = float(np.linalg.norm(pts[-1] - pts[0]))
 
     if gap > config.SHAPE_CLOSED_RATIO * path:
@@ -50,30 +62,33 @@ def recognize(stroke) -> Shape | None:
         offsets = pts - pts[0]
         bend = np.abs(offsets[:, 0] * direction[1] - offsets[:, 1] * direction[0]).max()
         if bend <= config.SHAPE_LINE_MAX_BEND * gap:
-            return Shape(LINE, np.array([pts[0], pts[-1]]))
-        return None
+            return Analysis(Shape(LINE, np.array([pts[0], pts[-1]])), LINE)
+        return Analysis(None, "not closed: end where you started")
 
     hull = cv2.convexHull(pts.reshape(-1, 1, 2))
     perimeter = cv2.arcLength(hull, True)
     area = cv2.contourArea(hull)
     if not perimeter or not area or path > config.SHAPE_MAX_PATH_RATIO * perimeter:
-        return None  # goes back and forth inside its outline: a scribble
+        return Analysis(None, "scribble")  # goes back and forth inside its outline
 
-    if 4 * np.pi * area / perimeter ** 2 >= config.SHAPE_CIRCLE_ROUNDNESS:
-        return _circle(pts)
+    roundness = 4 * np.pi * area / perimeter ** 2
+    if roundness >= config.SHAPE_CIRCLE_ROUNDNESS:
+        return Analysis(_circle(pts), CIRCLE)
     # How well the outline fills the smallest rectangle / triangle around it. A drawn
     # rectangle fills its box almost completely, a circle only pi/4 (0.79) of it, a
     # triangle half; a triangle fills its own enclosing triangle almost completely.
     box = cv2.minAreaRect(hull)
     (_, _), (w, h), _ = box
-    if area / (w * h) >= config.SHAPE_BOX_FILL:
+    box_fill = area / (w * h)
+    if box_fill >= config.SHAPE_BOX_FILL:
         ratio = max(w, h) / min(w, h)
         name = SQUARE if ratio <= config.SHAPE_SQUARE_RATIO else RECTANGLE
-        return Shape(name, cv2.boxPoints(box))
+        return Analysis(Shape(name, cv2.boxPoints(box)), name)
     triangle_area, triangle = cv2.minEnclosingTriangle(hull)
-    if triangle_area and area / triangle_area >= config.SHAPE_TRIANGLE_FILL:
-        return Shape(TRIANGLE, triangle.reshape(-1, 2))
-    return None
+    triangle_fill = area / triangle_area if triangle_area else 0.0
+    if triangle_fill >= config.SHAPE_TRIANGLE_FILL:
+        return Analysis(Shape(TRIANGLE, triangle.reshape(-1, 2)), TRIANGLE)
+    return Analysis(None, f"unclear (round {roundness:.2f}, box {box_fill:.2f}, triangle {triangle_fill:.2f})")
 
 
 def _smooth(pts: np.ndarray, window: int = config.SHAPE_SMOOTHING) -> np.ndarray:

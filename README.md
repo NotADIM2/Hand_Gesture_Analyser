@@ -321,7 +321,15 @@ the picture.
 When the pen lifts (or your hand leaves the picture), the stroke is recognised
 (`shape_recognizer.py`). A recognised shape replaces the shaky stroke with a clean
 green outline, flashes `SHAPE: CIRCLE` and is saved to the history as `DRAWN CIRCLE`;
-anything else stays as drawn.
+anything else stays as drawn. A stroke is recognised about 0.4 s after the pen
+lifts: if the pinch only loosened for a moment (it often does at a sharp corner) and
+you pinch again near where it stopped, the same stroke carries on, so a rectangle
+isn't cut into separate sides. A one-frame jump of the pen (a tracking glitch) is
+ignored.
+
+The status line shows `Pen: DOWN` / `UP` and the last stroke: its shape, or why it
+isn't one (`not closed: end where you started`, `scribble`, or `unclear` with the
+measurements below, which helps when tuning).
 
 | Shape | Draw | Recognised by |
 |---|---|---|

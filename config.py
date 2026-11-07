@@ -154,6 +154,10 @@ DRAW_LIFT_RATIO = 0.5
 DRAW_SMOOTHING = 0.5           # 0 = raw fingertip, closer to 1 = smoother but laggier
 DRAW_COLOUR = (255, 255, 0)    # BGR: cyan
 DRAW_THICKNESS = 6
+DRAW_JOIN_FRAMES = 12          # pen up this many frames (~0.4 s) = stroke finished, recognise it
+DRAW_JOIN_DISTANCE = 100.0     # pen down again within this many pixels before then = same stroke
+DRAW_MAX_JUMP = 0.25           # pen jumping this far (fraction of frame width) in one frame = glitch
+DRAW_GLITCH_FRAMES = 2         # ...unless it stays there longer than this: then the hand really moved
 SNAPSHOT_DIR = BASE_DIR / "data" / "snapshots"
 
 # --- Sign letters (sign_language.py) -----------------------------------------
