@@ -43,6 +43,9 @@ THUMB_VERTICAL_MAX_ANGLE = 45.0
 # --- Gesture rules (gesture_analyzer.py) -------------------------------------
 # Thumb tip and index tip closer than this (fraction of palm size) = touching.
 OK_TOUCH_RATIO = 0.35
+# Pinch: the index finger's middle-joint angle must be at least this many degrees.
+# In a fist it is tightly curled (well below this); in a pinch it is only half bent.
+PINCH_MIN_INDEX_ANGLE = 90.0
 # Index and middle fingers spread at least this many degrees apart = Peace/Victory;
 # held closer together = Two Fingers.
 PEACE_MIN_SPREAD = 15.0

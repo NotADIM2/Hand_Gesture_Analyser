@@ -40,6 +40,7 @@ class HandFeatures:
     index_middle_spread: float         # degrees between index and middle fingers
     thumb_direction: str | None        # "up", "down" or None
     hand_direction: str                # where the fingers point on screen: up/down/left/right
+    index_direction: str               # where the index finger points on screen: up/down/left/right
 
     @property
     def extended_fingers(self) -> frozenset[str]:
@@ -109,6 +110,7 @@ def extract_features(
         ),
         thumb_direction=_thumb_direction(image),
         hand_direction=_screen_direction(image[MIDDLE_MCP, :2] - image[WRIST, :2]),
+        index_direction=_screen_direction(image[INDEX_TIP, :2] - image[INDEX_MCP, :2]),
     )
 
 

@@ -1,7 +1,7 @@
 # Hand_Gesture_Analyser
 
 Team_Project. A real-time hand gesture analyser: it reads your webcam, finds your
-hands with MediaPipe, recognises 9 gestures with geometric rules, and keeps a
+hands with MediaPipe, recognises 17 gestures with geometric rules, and keeps a
 gesture history in SQLite.
 
 ## Architecture
@@ -60,14 +60,22 @@ becomes stable (not once per frame).
 | Gesture | Rule |
 |---|---|
 | OK SIGN | Thumb and index tips touching; middle, ring and pinky extended |
+| PINCH | Thumb and index tips touching; index half bent; middle, ring and pinky folded |
 | THUMBS UP | Only the thumb extended, pointing up and above the rest of the hand |
 | THUMBS DOWN | Only the thumb extended, pointing down and below the rest of the hand |
 | OPEN PALM | All five fingers extended |
+| FOUR FINGERS | Index, middle, ring and pinky extended; thumb folded |
 | FIST | No fingers extended |
-| ONE FINGER | Only the index finger extended |
+| POINT LEFT | Only the index finger extended, pointing left on screen |
+| POINT RIGHT | Only the index finger extended, pointing right on screen |
+| ONE FINGER | Only the index finger extended, pointing up or down |
+| L SIGN | Thumb and index extended |
 | PEACE | Index and middle extended and spread apart (≥ 15°) |
 | TWO FINGERS | Index and middle extended and held together |
 | THREE FINGERS | Index, middle and ring extended |
+| ROCK | Index and pinky extended |
+| I LOVE YOU | Thumb, index and pinky extended |
+| CALL ME | Thumb and pinky extended |
 
 Rules are checked in this order. Anything else is shown as UNKNOWN.
 
@@ -103,7 +111,7 @@ python feature_extractor.py   # extended fingers + thumb direction
 python scripts/record_samples.py
 ```
 
-Hold a gesture and press its number key to save it. Samples go to
+Hold a gesture and press its key (shown on screen) to save it. Samples go to
 `tests/fixtures/recorded_hands.json` and are checked by `pytest`. Commit them so
 every teammate's hands are covered.
 
@@ -114,7 +122,8 @@ live, then adjust:
 
 - `FINGER_STRAIGHT_ANGLE`: lower it if relaxed open fingers count as folded.
 - `THUMB_EXTENDED_LATERAL`: raise it if a tucked thumb counts as extended.
-- `OK_TOUCH_RATIO`: raise it if the OK sign isn't detected.
+- `OK_TOUCH_RATIO`: raise it if the OK sign or Pinch isn't detected.
+- `PINCH_MIN_INDEX_ANGLE`: lower it if a Pinch shows as Fist; raise it if a Fist shows as Pinch.
 - `PEACE_MIN_SPREAD`: the angle that separates Peace from Two Fingers.
 - `STABILITY_WINDOW` / `STABILITY_MIN_AGREEMENT`: smoothing.
 

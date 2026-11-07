@@ -73,6 +73,14 @@ def test_hand_direction():
     assert features(rotate_in_image(upright, 90)).hand_direction == "right"
 
 
+def test_index_direction():
+    pointing = make_hand(("index",))
+    assert features(pointing).index_direction == "up"
+    assert features(rotate_in_image(pointing, -90)).index_direction == "left"
+    assert features(rotate_in_image(pointing, 90)).index_direction == "right"
+    assert features(rotate_in_image(pointing, 180)).index_direction == "down"
+
+
 def test_rejects_wrong_shape():
     with pytest.raises(ValueError):
         extract_features(np.zeros((20, 3)), np.zeros((21, 3)))

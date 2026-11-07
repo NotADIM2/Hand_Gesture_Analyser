@@ -13,11 +13,14 @@ def features(pts, handedness="Right"):
 classifier = ga.RuleBasedClassifier()
 
 
-def test_nine_gestures_defined():
+def test_seventeen_gestures_defined():
     assert set(ga.GESTURES) == {
         ga.OPEN_PALM, ga.FIST, ga.THUMBS_UP, ga.THUMBS_DOWN, ga.ONE_FINGER,
         ga.TWO_FINGERS, ga.THREE_FINGERS, ga.PEACE, ga.OK_SIGN,
+        ga.FOUR_FINGERS, ga.ROCK, ga.CALL_ME, ga.I_LOVE_YOU, ga.L_SIGN,
+        ga.PINCH, ga.POINT_LEFT, ga.POINT_RIGHT,
     }
+    assert len(ga.GESTURES) == 17
 
 
 @pytest.mark.parametrize("gesture", ga.GESTURES)
@@ -25,7 +28,7 @@ def test_classifies_each_gesture(gesture):
     assert classifier.classify(features(gesture_hand(gesture))) == gesture
 
 
-@pytest.mark.parametrize("gesture", [ga.OPEN_PALM, ga.FIST, ga.ONE_FINGER, ga.PEACE, ga.THREE_FINGERS])
+@pytest.mark.parametrize("gesture", ga.GESTURES)
 @pytest.mark.parametrize("tilt", [(20, 0), (0, 30)])
 def test_classification_survives_tilt(gesture, tilt):
     assert classifier.classify(features(rotate_3d(gesture_hand(gesture), *tilt))) == gesture
@@ -36,8 +39,20 @@ def test_thumb_sideways_is_not_thumbs_up():
 
 
 def test_unlisted_pattern_is_unknown():
-    # Index + pinky ("rock") isn't one of the nine gestures.
-    assert classifier.classify(features(make_hand(("index", "pinky")))) == ga.UNKNOWN
+    # Ring + pinky alone isn't one of the gestures.
+    assert classifier.classify(features(make_hand(("ring", "pinky")))) == ga.UNKNOWN
+
+
+def test_fist_with_thumb_near_index_is_not_pinch():
+    # A fist's index finger is curled tight, so a nearby thumb doesn't make it a pinch.
+    pts = make_hand()
+    pts[4] = pts[8] + [-0.05, 0.0, 0.0]
+    assert classifier.classify(features(pts)) == ga.FIST
+
+
+@pytest.mark.parametrize("degrees", [0, 180])
+def test_index_up_or_down_is_one_finger(degrees):
+    assert classifier.classify(features(rotate_in_image(make_hand(("index",)), degrees))) == ga.ONE_FINGER
 
 
 def test_upside_down_peace_still_peace():
@@ -45,9 +60,9 @@ def test_upside_down_peace_still_peace():
 
 
 def test_custom_rule_can_be_added():
-    rock = ga.GestureRule("ROCK", lambda f: ga.only(f, "index", "pinky"))
-    custom = ga.RuleBasedClassifier(list(ga.DEFAULT_RULES) + [rock])
-    assert custom.classify(features(make_hand(("index", "pinky")))) == "ROCK"
+    ring_pinky = ga.GestureRule("RING PINKY", lambda f: ga.only(f, "ring", "pinky"))
+    custom = ga.RuleBasedClassifier(list(ga.DEFAULT_RULES) + [ring_pinky])
+    assert custom.classify(features(make_hand(("ring", "pinky")))) == "RING PINKY"
 
 
 @pytest.mark.parametrize(

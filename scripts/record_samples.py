@@ -1,10 +1,10 @@
 """Record real, labelled hand landmarks from the webcam for testing the gesture rules.
 
-Hold a gesture in front of the camera and press its number key to save the current
+Hold a gesture in front of the camera and press its key to save the current
 hand's landmarks. Samples are appended to tests/fixtures/recorded_hands.json, which
 tests/test_gesture_analyzer.py checks automatically.
 
-Keys:  1-9 = save sample for that gesture (shown on screen)   q = quit
+Keys:  1-9, 0, a-g = save sample for that gesture (shown on screen)   q = quit
 
 Usage:  python scripts/record_samples.py
 """
@@ -24,6 +24,8 @@ from hand_detector import HandDetector  # noqa: E402
 from ui import GREY, WHITE, draw_hand, draw_panel  # noqa: E402
 
 OUTPUT = ROOT / "tests" / "fixtures" / "recorded_hands.json"
+# One key per gesture, in GESTURES order. q is left free for quitting.
+SAVE_KEYS = "1234567890abcdefghijklmnoprstuvwxyz"
 
 
 def load() -> dict:
@@ -35,8 +37,8 @@ def load() -> dict:
 def main() -> None:
     data = load()
     classifier = RuleBasedClassifier()
-    keys = {ord(str(i + 1)): name for i, name in enumerate(GESTURES)}
-    menu = [(f"{i + 1}: {name}", GREY) for i, name in enumerate(GESTURES)]
+    keys = {ord(key): name for key, name in zip(SAVE_KEYS, GESTURES)}
+    menu = [(f"{key}: {name}", GREY) for key, name in zip(SAVE_KEYS, GESTURES)]
 
     with Camera() as cam, HandDetector(max_hands=1) as detector:
         while True:
@@ -48,7 +50,7 @@ def main() -> None:
                 f = extract_features(hand.world_landmarks, hand.image_points, hand.handedness)
                 draw_hand(frame, hand, f"rules say: {classifier.classify(f)}")
             status = (f"Saved: {len(data['samples'])} samples", WHITE)
-            draw_panel(frame, [status, ("Press a number to save:", WHITE)] + menu + [("q: quit", GREY)], (10, 10), scale=0.5)
+            draw_panel(frame, [status, ("Press a key to save:", WHITE)] + menu + [("q: quit", GREY)], (10, 10), scale=0.5)
             cv2.imshow("record samples", frame)
 
             key = cv2.waitKey(1) & 0xFF

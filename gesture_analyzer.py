@@ -24,6 +24,14 @@ TWO_FINGERS = "TWO FINGERS"
 THREE_FINGERS = "THREE FINGERS"
 PEACE = "PEACE"
 OK_SIGN = "OK SIGN"
+FOUR_FINGERS = "FOUR FINGERS"
+ROCK = "ROCK"
+CALL_ME = "CALL ME"
+I_LOVE_YOU = "I LOVE YOU"
+L_SIGN = "L SIGN"
+PINCH = "PINCH"
+POINT_LEFT = "POINT LEFT"
+POINT_RIGHT = "POINT RIGHT"
 UNKNOWN = "UNKNOWN"
 
 # Recognition status for one hand.
@@ -44,24 +52,38 @@ def only(f: HandFeatures, *fingers: str) -> bool:
 
 
 # Checked in order, first match wins, so more specific gestures come first
-# (OK before the finger counts, Peace before Two Fingers).
+# (OK and Pinch before the finger counts, Point Left/Right before One Finger,
+# Peace before Two Fingers).
 DEFAULT_RULES: tuple[GestureRule, ...] = (
     GestureRule(
         OK_SIGN,
         lambda f: f.thumb_index_distance < config.OK_TOUCH_RATIO
         and all(f.extended[n] for n in ("middle", "ring", "pinky")),
     ),
+    GestureRule(
+        PINCH,
+        lambda f: f.thumb_index_distance < config.OK_TOUCH_RATIO
+        and not any(f.extended[n] for n in ("middle", "ring", "pinky"))
+        and f.finger_angles["index"] >= config.PINCH_MIN_INDEX_ANGLE,
+    ),
     GestureRule(THUMBS_UP, lambda f: only(f, "thumb") and f.thumb_direction == "up"),
     GestureRule(THUMBS_DOWN, lambda f: only(f, "thumb") and f.thumb_direction == "down"),
     GestureRule(OPEN_PALM, lambda f: only(f, "thumb", "index", "middle", "ring", "pinky")),
+    GestureRule(FOUR_FINGERS, lambda f: only(f, "index", "middle", "ring", "pinky")),
     GestureRule(FIST, lambda f: only(f)),
+    GestureRule(POINT_LEFT, lambda f: only(f, "index") and f.index_direction == "left"),
+    GestureRule(POINT_RIGHT, lambda f: only(f, "index") and f.index_direction == "right"),
     GestureRule(ONE_FINGER, lambda f: only(f, "index")),
+    GestureRule(L_SIGN, lambda f: only(f, "thumb", "index")),
     GestureRule(
         PEACE,
         lambda f: only(f, "index", "middle") and f.index_middle_spread >= config.PEACE_MIN_SPREAD,
     ),
     GestureRule(TWO_FINGERS, lambda f: only(f, "index", "middle")),
     GestureRule(THREE_FINGERS, lambda f: only(f, "index", "middle", "ring")),
+    GestureRule(ROCK, lambda f: only(f, "index", "pinky")),
+    GestureRule(I_LOVE_YOU, lambda f: only(f, "thumb", "index", "pinky")),
+    GestureRule(CALL_ME, lambda f: only(f, "thumb", "pinky")),
 )
 
 GESTURES: tuple[str, ...] = tuple(rule.name for rule in DEFAULT_RULES)
