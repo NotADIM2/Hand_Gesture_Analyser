@@ -39,10 +39,11 @@ KEY_CONTROL = ord("m")
 KEY_DRAW = ord("d")
 KEY_SIGN = ord("a")
 KEY_SAVE = ord("s")
+KEY_TEACH = ord("t")
 
 HELP_LINES = (
     "q: quit   h: history   f: features   c: clear history   s: save picture",
-    "m: control mode   d: air draw   a: sign letters",
+    "m: control mode   d: air draw   a: sign letters   t: teach a new pose",
 )
 
 
@@ -122,9 +123,21 @@ def draw_trail(frame: np.ndarray, trail: np.ndarray) -> None:
     cv2.circle(frame, tuple(int(v) for v in points[-1]), 7, TRAIL, -1, cv2.LINE_AA)
 
 
+def finger_count_text(features: list[HandFeatures]) -> str:
+    """Fingers up across all hands, 0-10, e.g. "Fingers up: 7 (LEFT 5 + RIGHT 2)"."""
+    total = sum(f.extended_count for f in features)
+    if len(features) < 2:
+        return f"Fingers up: {total}"
+    parts = " + ".join(f"{f.handedness.upper()} {f.extended_count}" for f in features)
+    return f"Fingers up: {total} ({parts})"
+
+
 def result_lines(hand_count: int, results: list[GestureResult],
-                 last_move: MotionEvent | None = None) -> list[tuple[str, tuple]]:
+                 last_move: MotionEvent | None = None,
+                 features: list[HandFeatures] = ()) -> list[tuple[str, tuple]]:
     lines = [(f"Hands detected: {hand_count}", WHITE)]
+    if features:
+        lines.append((finger_count_text(features), WHITE))
     if last_move is not None:
         lines.append((f"Last move: {move_text(last_move)}", TRAIL))
     if not results:
@@ -213,7 +226,7 @@ class Interface:
         for trail in trails:
             draw_trail(frame, trail)
 
-        _, result_height = draw_panel(frame, result_lines(len(hands), results, last_move), (10, 10), min_width=260)
+        _, result_height = draw_panel(frame, result_lines(len(hands), results, last_move, features), (10, 10), min_width=260)
         draw_panel(frame, [(f"FPS: {fps:.0f}", GREEN)], (frame.shape[1], 10))
         draw_panel(frame, [(line, ORANGE) for line in status], (10, 10 + result_height + 6), scale=0.5)
         if moves:

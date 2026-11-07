@@ -6,6 +6,7 @@
 
 Extra modes, switched with keys in the window: air drawing (d) and sign letters (a).
 While one is on, gesture control is paused so the same gestures don't press keys.
+New poses can be taught live (t); --benchmark times every stage of the pipeline.
 
 Run:  python app.py            (see --help for options)
 """
@@ -20,6 +21,7 @@ import cv2
 
 import config
 from air_draw import AirCanvas
+from benchmark import StageTimer
 from camera import Camera, CameraError, to_rgb
 from controller import GestureController, GesturePassword
 from database import GestureDatabase
@@ -29,7 +31,11 @@ from hand_detector import HandDetector
 from ml_classifier import KNNClassifier
 from motion_analyzer import MotionAnalyzer, measure_heart
 from sign_language import SignSpeller
-from ui import KEY_CLEAR, KEY_CONTROL, KEY_DRAW, KEY_QUIT, KEY_SAVE, KEY_SIGN, FPSCounter, HistoryView, Interface
+from teach import Teacher, TaughtGestures, WithTaughtGestures
+from ui import (
+    KEY_CLEAR, KEY_CONTROL, KEY_DRAW, KEY_QUIT, KEY_SAVE, KEY_SIGN, KEY_TEACH,
+    FPSCounter, HistoryView, Interface,
+)
 
 
 def load_history(db: GestureDatabase, session_id: str) -> HistoryView:
@@ -69,6 +75,7 @@ def run(
     db_path: Path | None = config.DB_PATH,
     control: str | None = None,
     classifier: str = "rules",
+    benchmark: bool = False,
 ) -> int:
     session_id = uuid.uuid4().hex[:8]
     camera = Camera(index=camera_index)
@@ -77,7 +84,11 @@ def run(
         camera.open()
         detector = HandDetector()
         db = GestureDatabase(db_path) if db_path is not None else None
-        analyzer = GestureAnalyzer(KNNClassifier.load() if classifier == "ml" else RuleBasedClassifier())
+        taught = TaughtGestures()
+        base = KNNClassifier.load() if classifier == "ml" else RuleBasedClassifier()
+        analyzer = GestureAnalyzer(WithTaughtGestures(base, taught))
+        teacher = Teacher(taught)
+        timer = StageTimer()
         motion = MotionAnalyzer()
         recent_moves = []
         last_move = None
@@ -92,11 +103,15 @@ def run(
         history = HistoryView()
         history_loaded_at = 0.0
         print(f"Running (session {session_id}, {classifier} classifier). Press q in the video window to quit.")
+        if taught.names:
+            print(f"Taught poses: {', '.join(taught.names)}")
         if controller.enabled:
             print(f"Control mode: {controller.profile}. Show the gesture password, then click the window to control.")
 
         while True:
+            timer.start()
             frame = camera.read()
+            timer.lap("camera")
             if frame is None:
                 # Keep the window responsive while the camera hiccups.
                 if ui.poll() in KEY_QUIT or ui.closed:
@@ -104,10 +119,17 @@ def run(
                 continue
 
             hands = detector.detect(to_rgb(frame))
+            timer.lap("hand detection")
             features = [extract_features(h.world_landmarks, h.image_points, h.handedness) for h in hands]
+            timer.lap("feature extraction")
             results = analyzer.analyze(features)
+            timer.lap("gesture classifier")
             now = time.monotonic()
             moves = motion.update(hands, frame.shape[1], now)
+            timer.lap("motion analyzer")
+            learned = teacher.update(features, now)
+            if learned:
+                last_action, last_action_at = learned, now
             recent_moves = [m for m in recent_moves + moves if now - m.time < config.MOTION_DISPLAY_SECONDS]
             if moves:
                 last_move = moves[-1]
@@ -135,17 +157,33 @@ def run(
                 if ui.show_history and time.monotonic() - history_loaded_at > config.HISTORY_REFRESH_SECONDS:
                     history = load_history(db, session_id)
                     history_loaded_at = time.monotonic()
+            timer.lap("modes, control, history")
 
+            status = status_lines(controller, password, mode)
+            if teacher.active:
+                status.append(teacher.status_line(now))
+            if benchmark:
+                status.append(timer.live_line())
             ui.render(
                 frame, hands, results, features, fps.tick(), history if db else None,
                 moves=recent_moves, trails=motion.trails(frame.shape[1]), last_move=last_move,
                 heart=measure_heart(*hands) if len(hands) == 2 and ui.show_features else None,
-                status=status_lines(controller, password, mode),
+                status=status,
                 action=last_action if now - last_action_at < config.CONTROL_DISPLAY_SECONDS else None,
                 sign_text=speller.text if mode == "sign" else None,
             )
+            timer.lap("drawing")
             key = ui.show(frame)
-            if key in KEY_QUIT or ui.closed:
+            timer.lap("display")
+            timer.end_frame()
+            if ui.closed:
+                break
+            if teacher.naming:  # while typing a name, keys are letters, not commands
+                message = teacher.handle_key(key, now)
+                if message:
+                    last_action, last_action_at = message, now
+                continue
+            if key in KEY_QUIT:
                 break
             if key == KEY_CLEAR and db is not None:
                 db.clear()
@@ -167,6 +205,8 @@ def run(
                 speller.clear()
             if key == KEY_SAVE:
                 print(f"Saved {save_snapshot(frame)}")
+            if key == KEY_TEACH and not teacher.active:
+                teacher.start()
             ui.handle_key(key)
         return 0
 
@@ -186,6 +226,12 @@ def run(
             db.close()
         if ui is not None:
             ui.close()
+        if benchmark and timer.frames:
+            report = timer.summary()
+            print(report)
+            config.BENCHMARK_REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+            config.BENCHMARK_REPORT_PATH.write_text(report, encoding="utf-8")
+            print(f"Saved {config.BENCHMARK_REPORT_PATH}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -201,10 +247,15 @@ def main(argv: list[str] | None = None) -> int:
         "--classifier", choices=("rules", "ml"), default="rules",
         help="recognise poses with geometric rules or the trained k-NN model (default: %(default)s)",
     )
+    parser.add_argument("--benchmark", action="store_true", help="time each pipeline stage; summary saved on exit")
+    parser.add_argument("--forget-taught", action="store_true", help="delete all poses taught with the t key, then run")
     args = parser.parse_args(argv)
+    if args.forget_taught:
+        TaughtGestures().forget()
+        print("Forgot all taught poses.")
     return run(
         camera_index=args.camera, db_path=None if args.no_history else args.db,
-        control=args.control, classifier=args.classifier,
+        control=args.control, classifier=args.classifier, benchmark=args.benchmark,
     )
 
 

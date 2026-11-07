@@ -15,13 +15,16 @@ machine-learning model.
 | | |
 |---|---|
 | **25 gestures** | 17 hand poses, 6 moving gestures (swipes, wave, circle), 2 two-hand gestures (clap, heart) |
+| **Teach new poses** | Press `t`, name a pose, show it for 2 seconds: it's recognised from then on |
+| **Finger counting** | Fingers up on one or both hands, 0–10, always on screen |
 | **Two classifiers** | Geometric rules (default) or a trained k-NN model (`--classifier ml`), compared on real hands |
 | **Gesture control** | Run a PowerPoint slideshow or your music player, unlocked by a gesture password |
 | **Air drawing** | Pinch to draw on the video, fist to clear, `s` to save the picture |
 | **Sign letters** | Spell words with 9 ASL fingerspelling letters |
 | **History and reports** | Every gesture saved to SQLite; HTML session report with charts; accuracy report per gesture and per person |
 | **Honest feedback** | Shows how many of the last 10 frames agree, never a made-up confidence % |
-| **Tested** | 200+ automated tests, no webcam needed, run on every push by GitHub Actions |
+| **Speed benchmark** | `--benchmark` times every pipeline stage and saves a table of averages |
+| **Tested** | 240+ automated tests, no webcam needed, run on every push by GitHub Actions |
 
 ## Demo in 5 minutes
 
@@ -31,14 +34,17 @@ python app.py
 ```
 
 1. **Poses**: show a fist, thumbs up, peace, rock, call me; the label and stability
-   appear on screen. Press `f` to see the finger measurements behind each decision.
+   appear on screen, with the number of fingers up (try both hands: 0–10). Press `f`
+   to see the finger measurements behind each decision.
 2. **Moving gestures**: swipe, wave, draw a circle; follow the magenta trail and the
    banner. Two hands: make a heart.
 3. **Air drawing**: press `d`, pinch and draw, fist to clear, `s` to save.
 4. **Sign letters**: press `a`, spell a word, e.g. **BUY** (four fingers, two fingers, call me).
 5. **Control**: press `m`, show **FIST → PEACE → THUMBS UP** to unlock, click a
    PowerPoint window and swipe through slides.
-6. **Results**: quit, then `python scripts/session_report.py` and open
+6. **Teach**: show your pinky alone (UNKNOWN), press `t`, type `PINKY PROMISE`,
+   Enter, hold the pose: from now on it's recognised.
+7. **Results**: quit, then `python scripts/session_report.py` and open
    `reports/session_report.html`; `python scripts/evaluate.py` for accuracy, rules vs ML.
 
 ![Session report: most used gestures, hands used and gestures per session](docs/session_report.png)
@@ -63,6 +69,8 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Controller | `controller.py` | Gestures → key presses, using a profile from `config.py`; off by default |
 | Gesture history | `database.py` | SQLite, written from a background thread |
 | Result / UI | `ui.py` | Skeleton, result panel, history and feature panels, keys |
+| Teaching | `teach.py` | Poses taught live with `t`, checked before the normal classifier |
+| Benchmark | `benchmark.py` | Times each pipeline stage (`--benchmark`) |
 | Air drawing | `air_draw.py` | Pinch to draw on the video, fist to clear |
 | Sign letters | `sign_language.py` | Poses → ASL fingerspelling letters, spelled into words |
 | ML classifier | `ml_classifier.py` | k-nearest-neighbours alternative to the rules (`--classifier ml`) |
@@ -97,6 +105,8 @@ python app.py --camera 1      # another webcam
 python app.py --no-history    # don't save to the database
 python app.py --control presentation   # start with gesture control on (or: media)
 python app.py --classifier ml           # recognise poses with the trained model instead of rules
+python app.py --benchmark               # time every pipeline stage
+python app.py --forget-taught           # delete poses taught with t
 ```
 
 | Key | Action |
@@ -109,6 +119,7 @@ python app.py --classifier ml           # recognise poses with the trained model
 | `d` | Air drawing on/off |
 | `a` | Sign letters on/off |
 | `s` | Save a picture of the window to `data/snapshots/` |
+| `t` | Teach a new pose (type a name, Enter; Esc cancels) |
 
 History is saved in `data/gesture_history.db`, one row each time a new gesture
 becomes stable (not once per frame).
@@ -198,6 +209,49 @@ Profiles are in `CONTROL_PROFILES` in `config.py`: each gesture maps to a label,
 (a [pynput key name](https://pynput.readthedocs.io/en/latest/keyboard.html#pynput.keyboard.Key)
 such as `right` or `media_play_pause`, or a single character), and optionally `True`
 to repeat while held. Add your own profile there and it appears in the `m` cycle.
+
+## Teach a new pose
+
+Press `t`, type a name and press Enter. After a 3-second countdown, hold the pose
+with one hand and move it a little while the app records 30 examples (about 2
+seconds). From then on it's recognised like a built-in gesture: shown on screen,
+smoothed, and saved to the history. Taught poses are kept in
+`data/taught_gestures.npz` (`--forget-taught` deletes them). While you type the
+name, keys are letters, not commands.
+
+Good poses to try (the rules don't know them, so they show UNKNOWN before teaching):
+
+| Name | Pose |
+|---|---|
+| PINKY PROMISE | Only the little finger up |
+| GERMAN THREE | Thumb, index and middle finger up |
+| MIDDLE THREE | Middle, ring and little finger up; index and thumb folded |
+
+Taught examples are checked **before** the normal classifier, but only count when a
+hand is very close to them (`TAUGHT_MAX_DISTANCE`), so they don't take over built-in
+gestures. Avoid teaching poses that are close to a built-in one: a half-closed
+"claw", for example, measures almost like a loose fist and would steal fists.
+
+## Finger counting
+
+The result panel always shows how many fingers are up, across both hands:
+`Fingers up: 7 (LEFT 5 + RIGHT 2)`. It uses the same extended-finger detection as the
+gestures, so the `f` panel shows exactly which fingers were counted.
+
+## Speed benchmark
+
+`python app.py --benchmark` times every stage of each frame and shows the live total
+on screen. When you quit, it prints and saves `reports/benchmark.md`:
+
+| Stage | Average ms | Share |
+|---|---|---|
+| camera (includes waiting for the webcam's next frame) | … | … |
+| hand detection | … | … |
+| feature extraction, gesture classifier, motion analyzer, … | … | … |
+
+It also reports the frame rate the processing alone could reach, without waiting
+for the camera. Hand detection (MediaPipe) is normally the largest share; the rules,
+features and drawing take well under a millisecond each.
 
 ## Air drawing
 

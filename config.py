@@ -15,6 +15,9 @@ MODEL_URL = (
 DB_PATH = BASE_DIR / "data" / "gesture_history.db"
 # Trained k-NN classifier (python scripts/train_classifier.py).
 ML_MODEL_PATH = BASE_DIR / "models" / "gesture_knn.npz"
+# Poses taught live with the t key (teach.py).
+TAUGHT_GESTURES_PATH = BASE_DIR / "data" / "taught_gestures.npz"
+BENCHMARK_REPORT_PATH = BASE_DIR / "reports" / "benchmark.md"
 
 # --- Webcam (camera.py) --------------------------------------------------------
 CAMERA_INDEX = 0
@@ -65,6 +68,14 @@ ML_K = 5
 ML_MAX_DISTANCE = 0.6
 # Augmented synthetic hands per gesture in the training set.
 ML_SYNTHETIC_PER_GESTURE = 40
+
+# --- Teaching new poses (teach.py) ---------------------------------------------
+TEACH_EXAMPLES = 30            # examples recorded per teaching (about 2 seconds)
+TEACH_COUNTDOWN_SECONDS = 3.0  # time to get the pose ready after pressing Enter
+TEACH_MAX_NAME = 16
+# A hand counts as a taught pose only when this close to its examples (same units as
+# ML_MAX_DISTANCE). Strict, so taught poses don't take over the built-in ones.
+TAUGHT_MAX_DISTANCE = 0.3
 
 # --- Moving and two-hand gestures (motion_analyzer.py) -----------------------
 # One-hand positions are in frame widths (1.0 = the full width of the frame).

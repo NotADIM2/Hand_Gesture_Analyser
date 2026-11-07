@@ -153,7 +153,8 @@ th, td {{ text-align:left; padding:6px 8px; border-bottom:1px solid var(--line);
 <section class="card"><h2>Most used gestures</h2>
 <div class="legend"><span><i class="dot" style="background:var(--pose)"></i>Hand pose</span>
 <span><i class="dot" style="background:var(--moving)"></i>Moving</span>
-<span><i class="dot" style="background:var(--two)"></i>Two-hand</span></div>
+<span><i class="dot" style="background:var(--two)"></i>Two-hand</span>
+<span><i class="dot" style="background:var(--other)"></i>Taught</span></div>
 {bar_chart(gesture_rows)}</section>
 <section class="card"><h2>Hands used</h2>{bar_chart(hand_rows)}</section>
 <section class="card"><h2>Gestures per session{' (last 15)' if len(sessions) > 15 else ''}</h2>{bar_chart(session_rows)}</section>
