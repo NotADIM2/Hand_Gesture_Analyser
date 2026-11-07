@@ -80,6 +80,20 @@ def test_one_file_per_pose_and_loaded_again(tmp_path):
     assert again.match(features(DEMO_POSES["PINKY PROMISE"]())) == "PINKY PROMISE"
 
 
+def test_broken_pose_files_are_skipped_and_the_rest_still_work(tmp_path):
+    taught_demo(tmp_path)
+    (tmp_path / "conflict.json").write_text('{"name": "OOPS", <<<<<<< HEAD', encoding="utf-8")   # bad JSON
+    (tmp_path / "no_examples.json").write_text('{"name": "EMPTY"}', encoding="utf-8")
+    (tmp_path / "wrong_shape.json").write_text(
+        '{"name": "BENT", "examples": [{"world_landmarks": [[0, 0]], "image_points": [[0, 0]]}]}', encoding="utf-8")
+    (tmp_path / "no_name.json").write_text('{"name": "", "examples": []}', encoding="utf-8")
+    taught = TaughtGestures(folder=tmp_path)
+    assert taught.names == sorted(DEMO_POSES)
+    assert sorted(s.split()[0] for s in taught.skipped) == [
+        "conflict.json", "no_examples.json", "no_name.json", "wrong_shape.json"]
+    assert taught.match(features(DEMO_POSES["PINKY PROMISE"]())) == "PINKY PROMISE"
+
+
 def test_teaching_again_adds_examples_and_author(tmp_path):
     taught = TaughtGestures(folder=tmp_path)
     taught.add("PINKY PROMISE", [example(wobble(make_hand(("pinky",)))) for _ in range(5)], author="alex")

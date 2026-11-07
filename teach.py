@@ -70,10 +70,19 @@ class TaughtGestures:
         self.vectors = np.empty((0, VECTOR_SIZE), np.float32)
         self.labels: list[str] = []
         self.taught_by: dict[str, list[str]] = {}
+        self.skipped: list[str] = []   # pose files that couldn't be read, with the reason
         if self.folder is not None and self.folder.is_dir():
             for path in sorted(self.folder.glob("*.json")):
-                data = json.loads(path.read_text(encoding="utf-8"))
-                self._remember(data["name"], data["examples"], data.get("taught_by", []))
+                # One broken file (bad edit, merge conflict) must not stop the app:
+                # skip it and say so, and the other poses still work.
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    name = data["name"]
+                    if not isinstance(name, str) or not name.strip():
+                        raise ValueError("no pose name")
+                    self._remember(name, data["examples"], data.get("taught_by", []))
+                except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
+                    self.skipped.append(f"{path.name} ({type(exc).__name__}: {exc})")
 
     @property
     def names(self) -> list[str]:

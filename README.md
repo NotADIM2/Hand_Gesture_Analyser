@@ -291,6 +291,13 @@ than 10% of one pose's examples looking like the other). The app also prints a
 warning at start if two taught poses are too alike. Each pose is a separate file,
 so poses taught by different people never conflict.
 
+Before merging a pose pull request, check that the tests passed (green tick) and
+that **Files changed** shows only the new file in `taught_poses/`. If a broken pose
+file still reaches `main`, the app doesn't crash: it skips that file with a warning
+(`Warning: skipped taught pose file ...; fix or delete it.`) and every other pose
+keeps working. To undo a merged pull request, use **Revert** on its GitHub page, or
+`git revert -m 1 <merge commit>` and push.
+
 ## Finger counting
 
 The result panel always shows how many fingers are up, across both hands:

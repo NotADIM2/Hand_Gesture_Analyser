@@ -128,6 +128,8 @@ def run(
         history = HistoryView()
         history_loaded_at = 0.0
         print(f"Running (session {session_id}, {classifier} classifier). Press q in the video window to quit.")
+        for skipped in taught.skipped:
+            print(f"Warning: skipped taught pose file {skipped}; fix or delete it.", file=sys.stderr)
         if taught.names:
             print("Taught poses: " + ", ".join(f"{n} (by {', '.join(taught.taught_by[n])})" for n in taught.names))
             for clash in taught.clashes():
