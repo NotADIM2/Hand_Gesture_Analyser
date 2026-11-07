@@ -38,6 +38,8 @@ WORDS = (HELLO, GOODBYE, PLEASE, THANK_YOU, SORRY, YES, NO, HELP, WHO, WHAT, WHE
 
 # Hand shapes used by the signs.
 FLAT, FIST, INDEX, Y_SHAPE, W_SHAPE, FLAT_O, OTHER = "flat", "fist", "index", "Y", "W", "flat O", "other"
+SHAPE_NAMES = {FLAT: "flat hand", FIST: "fist", INDEX: "index finger", Y_SHAPE: "Y shape",
+               W_SHAPE: "W shape", FLAT_O: "flattened O", OTHER: "other shape"}
 
 WRIST, THUMB_TIP, INDEX_MCP, INDEX_TIP, MIDDLE_MCP, MIDDLE_TIP, PINKY_MCP = 0, 4, 5, 8, 9, 12, 17
 FINGER_TIPS = (8, 12, 16, 20)
@@ -149,14 +151,35 @@ def straight(frames) -> bool:
     """The palm went fairly directly from start to end (not round in a circle): it never
     strays far from the straight line between them. Unlike path length, jitter barely
     changes this."""
-    xy = np.column_stack([smooth([h.x for h in frames]), smooth([h.y for h in frames])])
+    return _straight(_path(frames))
+
+
+def _path(frames) -> np.ndarray:
+    return np.column_stack([smooth([h.x for h in frames]), smooth([h.y for h in frames])])
+
+
+def _straight(xy: np.ndarray) -> bool:
     chord = xy[-1] - xy[0]
     length = float(np.linalg.norm(chord))
     if not length:
         return False
     offsets = xy - xy[0]
     stray = np.abs(offsets[:, 0] * chord[1] - offsets[:, 1] * chord[0]).max() / length
-    return stray <= config.SIGN_MAX_STRAY * length
+    along = offsets @ chord / length    # how far along the line each point is
+    # It mustn't overshoot and come back either (up, then down the same line).
+    backtrack = max(-along.min(), along.max() - length)
+    return max(stray, backtrack) <= config.SIGN_MAX_STRAY * length
+
+
+def last_stroke(frames, min_frames: int = 5):
+    """The latest straight stretch of movement: the longest run of final frames that is
+    straight. A sign like HELLO starts by raising the hand to the forehead; only the
+    movement after that counts, so no pause is needed in between."""
+    xy = _path(frames)   # smoothed once, then each candidate start is tried
+    for start in range(len(frames) - min_frames + 1):
+        if _straight(xy[start:]):
+            return frames[start:]
+    return []
 
 
 def since(frames, seconds: float):
@@ -223,13 +246,21 @@ def one_hand_sign(frames: list[HandFrame]) -> str | None:
     if share(frames, W_SHAPE) >= config.SIGN_SHAPE_SHARE and swings([h.ky for h in frames], config.SIGN_TAP) >= config.SIGN_TAP_SWINGS:
         return WATER
 
-    # One clear movement of a flat hand: HELLO (from up high, out to the side),
-    # THANK YOU (down and forward), BAD (down, turning the palm over).
-    move = since(frames, config.SIGN_MOVE_SECONDS)
-    if len(move) >= 5 and share(move, FLAT) >= config.SIGN_SHAPE_SHARE and straight(move):
-        dx, dy = move[-1].x - move[0].x, move[-1].y - move[0].y
-        if move[0].height < config.SIGN_HIGH and abs(dx) >= config.SIGN_MOVE and abs(dy) <= 0.6 * abs(dx):
+    # One clear movement of a flat hand: HELLO (from up high, out to the side, or
+    # forwards towards the camera), THANK YOU (down and forward), BAD (down, turning
+    # the palm over).
+    move = last_stroke(since(frames, config.SIGN_MOVE_SECONDS))
+    # HELLO counts from where the hand is up high (raising it there isn't part of it).
+    high = next((i for i, h in enumerate(move) if h.height < config.SIGN_HIGH), len(move))
+    salute = move[high:]
+    if len(salute) >= 5 and share(salute, FLAT) >= config.SIGN_SHAPE_SHARE:
+        dx, dy = salute[-1].x - salute[0].x, salute[-1].y - salute[0].y
+        sideways = abs(dx) >= config.SIGN_MOVE and abs(dy) <= 0.8 * abs(dx)
+        forwards = salute[-1].size / salute[0].size >= config.SIGN_TOWARDS and abs(dx) < config.SIGN_MOVE
+        if sideways or forwards:
             return HELLO
+    if move and share(move, FLAT) >= config.SIGN_SHAPE_SHARE:
+        dx, dy = move[-1].x - move[0].x, move[-1].y - move[0].y
         if dy >= config.SIGN_MOVE and abs(dx) <= dy:
             turn = angle_between(move[0].normal, move[-1].normal)
             if turn >= config.SIGN_FLIP_ANGLE:
@@ -320,6 +351,7 @@ class SignWords:
         self._quiet_until = 0.0
         self._last_word, self._last_word_at = None, -1e9
         self.words: list[str] = []
+        self.seen = ""   # the hand shapes in view, e.g. "flat hand, high" (shown on screen)
 
     @property
     def text(self) -> str:
@@ -335,6 +367,9 @@ class SignWords:
         """Call once per frame; returns a word when one is recognised."""
         keys = track_keys(hands)
         frames = {k: observe(h, f, frame_shape, now) for k, h, f in zip(keys, hands, features)}
+        self.seen = " + ".join(
+            f"{SHAPE_NAMES[h.shape]}, {'high' if h.height < config.SIGN_HIGH else 'low'}"
+            for h in sorted(frames.values(), key=lambda h: h.x))
         for key in set(self._tracks) - set(frames):
             del self._tracks[key]
         for key, frame in frames.items():

@@ -10,10 +10,10 @@ from synthetic_hand import ALL_FINGERS, gesture_hand, make_hand, rotate_3d
 W, H, PALM, FPS = 640, 480, 70, 30
 
 
-def placed(pts, x, y, hand="Right"):
+def placed(pts, x, y, hand="Right", scale=1.0):
     if hand == "Left":
         pts = pts * [-1, 1, 1]      # mirror image of a right hand
-    image = pts * PALM + [x, y, 0]
+    image = pts * PALM * scale + [x, y, 0]   # scale > 1: closer to the camera
     return DetectedHand(hand, 0.98, image / [W, H, W], pts * 0.09, image)
 
 
@@ -136,6 +136,33 @@ TWO_HANDS = {
 @pytest.mark.parametrize("word", TWO_HANDS)
 def test_two_hand_signs(word):
     assert play(TWO_HANDS[word]()) == [word]
+
+
+RAISE = [(FLAT, 300, 380 - 12 * i) for i in range(18)]   # hand comes up to the forehead
+
+
+@pytest.mark.parametrize("then", [
+    [(FLAT, 300 + 7 * i, 170) for i in range(1, 22)],                    # straight out to one side
+    [(FLAT, 300 - 7 * i, 170) for i in range(1, 22)],                    # or the other
+    [(FLAT, 300 + 7 * i, 170 + 3 * i) for i in range(1, 22)],            # in a slight downward arc
+    [(FLAT, 300, 170 + 42 * 0.03 * i, "Right", 1 + 0.03 * i) for i in range(1, 22)],   # towards the camera
+], ids=["right", "left", "arc", "forwards"])
+def test_hello_straight_after_raising_the_hand(then):
+    assert play(one(RAISE + then)) == [sw.HELLO]
+
+
+def test_thank_you_straight_after_raising_the_hand_and_raising_alone_says_nothing():
+    to_chin = [(FLAT, 320, 380 - 10 * i) for i in range(18)]
+    assert play(one(to_chin + [(FLAT, 320, 210 + 6 * i) for i in range(1, 20)])) == [sw.THANK_YOU]
+    assert play(one(RAISE + [(FLAT, 300, 170)] * 30)) == []
+
+
+def test_what_the_hands_look_like_is_shown():
+    signer = sw.SignWords()
+    play(one([(FLAT, 300, 150)] * 3), signer)
+    assert signer.seen == "flat hand, high"
+    play([[(FIST, 200, 400, "Left"), (INDEX, 420, 400)]] * 3, signer)
+    assert signer.seen == "fist, low + index finger, low"
 
 
 def test_every_word_has_a_test():

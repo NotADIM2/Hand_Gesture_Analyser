@@ -398,10 +398,12 @@ it recognises each sign by its **hand shape** and **movement**; where a sign is 
 (forehead, chin, chest) is either judged by how high the hand is in the picture
 (HELLO, HOME) or not checked. The table says how to sign each word *for this app*.
 Make one-hand signs with only that hand in view, and two-hand signs with both.
+The status line shows what the app sees right now, e.g. `Seen: flat hand, high`, so
+if a sign isn't recognised you can check the hand shape and height it needs.
 
 | Word | Hands | Sign it like this |
 |---|---|---|
-| HELLO | 1 | Flat hand up near your forehead, moved straight out to the side (a salute) |
+| HELLO | 1 | Flat hand raised to your forehead (top half of the picture), then straight out to the side or towards the camera, like a salute; no pause needed |
 | GOODBYE | 1 | Open hand held up, fingers folding down and up together from the knuckles |
 | PLEASE | 1 | Flat hand rubbed in a circle (over your chest) |
 | THANK YOU | 1 | Flat hand from your chin straight down and forward, palm staying the same way |
