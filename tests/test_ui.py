@@ -31,7 +31,7 @@ def test_result_lines_match_spec():
 
 def test_no_hand_lines():
     text = [t for t, _ in ui.result_lines(0, [])]
-    assert text == ["Hands detected: 0", "Status: NO HAND DETECTED"]
+    assert text == ["MODE 1: POSES", "Hands detected: 0", "Status: NO HAND DETECTED"]
 
 
 def test_history_lines():
@@ -73,13 +73,50 @@ def test_draw_moving_gesture_and_trail():
     interface.show_history = interface.show_features = False
     moves = [MotionEvent("SWIPE LEFT", "Right", 0.0), MotionEvent("HEART", "Both", 0.1)]
     trail = np.array([[100.0, 200.0], [150.0, 210.0], [200.0, 220.0]])
-    interface.render(frame, [], [], [], 30.0, moves=moves, trails=[trail], last_move=moves[-1])
+    interface.render(frame, [], [], [], 30.0, moves=moves, trails=[trail], last_move=moves[-1], mode=ui.MOTION)
     pink = (np.abs(frame.astype(int) - ui.TRAIL).sum(axis=2) < 30).sum()
     assert pink > 200  # the trail is clearly visible
-    assert "Last move: HEART (BOTH HANDS)" in [t for t, _ in ui.result_lines(0, [], moves[-1])]
+    assert "Last move: HEART (BOTH HANDS)" in [t for t, _ in ui.result_lines(0, [], moves[-1], mode=ui.MOTION)]
     assert ui.move_text(moves[-1]) == "HEART (BOTH HANDS)"
     assert ui.move_text(moves[0]) == "SWIPE LEFT (RIGHT HAND)"
     assert frame.any()
+
+
+def test_each_mode_shows_only_its_own_output():
+    from motion_analyzer import MotionEvent
+
+    hand = fake_hand()
+    features = [extract_features(hand.world_landmarks, hand.image_points, "Right")]
+    move = MotionEvent("SWIPE LEFT", "Right", 0.0)
+    trail = np.array([[100.0, 200.0], [150.0, 210.0], [200.0, 220.0]])
+    interface = ui.Interface.__new__(ui.Interface)
+    interface.show_history = interface.show_features = False
+
+    def pink_pixels(mode):
+        frame = np.zeros((480, 640, 3), np.uint8)
+        interface.render(frame, [hand], [result()], features, 30.0, moves=[move], trails=[trail],
+                         last_move=move, mode=mode)
+        return (np.abs(frame.astype(int) - ui.TRAIL).sum(axis=2) < 30).sum()
+
+    assert pink_pixels(ui.POSES) == 0 and pink_pixels(ui.DRAW) == 0   # no trails outside mode 2
+    assert pink_pixels(ui.MOTION) > 200
+
+    def text(mode):
+        return [t for t, _ in ui.result_lines(1, [result()], move, features, mode)]
+
+    assert "Detected Gesture: PEACE" in text(ui.POSES) and "Detected Gesture: PEACE" in text(ui.SIGN)
+    assert not any("Gesture" in t or "Last move" in t for t in text(ui.DRAW))
+    assert "Last move: SWIPE LEFT (RIGHT HAND)" in text(ui.MOTION)
+    assert not any("Detected Gesture" in t for t in text(ui.MOTION))
+    assert text(ui.DRAW)[0] == "MODE 3: DRAW SHAPES"
+
+
+def test_number_keys_pick_modes_and_letters_still_work():
+    assert [ui.MODE_KEYS[ord(str(i))] for i in range(1, 6)] == [ui.POSES, ui.MOTION, ui.DRAW, ui.SIGN, ui.EXERCISE]
+    assert ui.MODE_KEYS[ord("d")] == ui.DRAW and ui.MODE_KEYS[ord("a")] == ui.SIGN
+    assert ui.MODE_KEYS[ord("e")] == ui.EXERCISE
+    keys_in_help = " ".join(ui.HELP_LINES)
+    assert all(f"{i}: " in keys_in_help for i in range(1, 6))
 
 
 def test_heart_readout_in_feature_panel():

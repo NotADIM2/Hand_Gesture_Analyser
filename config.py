@@ -201,3 +201,15 @@ HAND_CONNECTIONS = (
     (0, 17), (17, 18), (18, 19), (19, 20),   # pinky
     (5, 9), (9, 13), (13, 17),               # palm
 )
+
+# --- Shape recognition in draw mode (shape_recognizer.py) ----------------------
+SHAPE_MIN_SIZE = 80.0                # pixels of stroke; shorter strokes are ignored
+SHAPE_CLOSED_RATIO = 0.2             # closed when the ends are this close (fraction of stroke length)
+SHAPE_LINE_MAX_BEND = 0.12           # open stroke straying at most this (fraction of length) = LINE
+SHAPE_MAX_PATH_RATIO = 1.4           # stroke longer than this x its outline = scribble
+SHAPE_SMOOTHING = 3                  # points averaged when measuring stroke length
+SHAPE_CIRCLE_ROUNDNESS = 0.92        # circularity for CIRCLE (1 = perfect; hand-drawn square ~0.85)
+SHAPE_BOX_FILL = 0.82                # outline fills this much of its smallest box = SQUARE/RECTANGLE (circle 0.79)
+SHAPE_TRIANGLE_FILL = 0.82           # outline fills this much of its smallest triangle = TRIANGLE (square ~0.6)
+SHAPE_SQUARE_RATIO = 1.3             # width/height within this (either way) = SQUARE
+SHAPE_COLOUR = (80, 220, 80)         # BGR: green outline of the recognised shape

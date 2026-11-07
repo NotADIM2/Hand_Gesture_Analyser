@@ -14,18 +14,19 @@ machine-learning model.
 
 | | |
 |---|---|
+| **One mode at a time** | Number keys 1–5 switch between poses, moving gestures, drawing shapes, sign letters and exercises, so the screen only shows what you're doing |
 | **25 gestures** | 17 hand poses, 6 moving gestures (swipes, wave, circle), 2 two-hand gestures (clap, heart) |
 | **Teach new poses** | Press `t`, name a pose, show it for 2 seconds: it's recognised from then on, and committing its file shares it with everyone |
-| **Finger counting** | Fingers up on one or both hands, 0–10, always on screen |
+| **Finger counting** | Fingers up on one or both hands, 0–10, in the poses mode |
 | **Two classifiers** | Geometric rules (default) or a trained k-NN model (`--classifier ml`), compared on real hands |
 | **Gesture control** | Run a PowerPoint slideshow or your music player, unlocked by a gesture password |
-| **Air drawing** | Pinch to draw on the video, fist to clear, `s` to save the picture |
+| **Draw shapes** | Pinch to draw in the air; circles, triangles, squares, rectangles and lines are recognised and redrawn cleanly |
 | **Sign letters, spoken** | Spell words with ASL fingerspelling letters; each finished word is spoken aloud, offline |
 | **Hand exercise coach** | Guided routine (open/close, thumb touches, count to five) with repetition counting, timing, range of motion and progress in the report |
 | **History and reports** | Every gesture saved to SQLite; HTML session report with charts; accuracy report per gesture and per person |
 | **Honest feedback** | Shows how many of the last 10 frames agree, never a made-up confidence % |
 | **Speed benchmark** | `--benchmark` times every pipeline stage and saves a table of averages |
-| **Tested** | 240+ automated tests, no webcam needed, run on every push by GitHub Actions |
+| **Tested** | 300+ automated tests, no webcam needed, run on every push by GitHub Actions |
 
 ## Demo in 5 minutes
 
@@ -34,17 +35,23 @@ machine-learning model.
 python app.py
 ```
 
-1. **Poses**: show a fist, thumbs up, peace, rock, call me; the label and stability
-   appear on screen, with the number of fingers up (try both hands: 0–10). Press `f`
-   to see the finger measurements behind each decision.
-2. **Moving gestures**: swipe, wave, draw a circle; follow the magenta trail and the
-   banner. Two hands: make a heart.
-3. **Air drawing**: press `d`, pinch and draw, fist to clear, `s` to save.
-4. **Sign letters**: press `a`, spell a word, e.g. **BUY** (four fingers, two fingers, call me).
-5. **Control**: press `m`, show **FIST → PEACE → THUMBS UP** to unlock, click a
-   PowerPoint window and swipe through slides.
-6. **Exercises**: press `e` and follow the routine on screen (and spoken): open and
+The top left of the window always says which mode you're in (`MODE 1: POSES`).
+
+1. **Poses** (key `1`, the default): show a fist, thumbs up, peace, rock, call me;
+   the label and stability appear on screen, with the number of fingers up (try both
+   hands: 0–10). Press `f` to see the finger measurements behind each decision.
+2. **Moving gestures** (key `2`): swipe, wave, draw a circle with your palm; follow
+   the magenta trail and the banner. Two hands: clap, make a heart.
+3. **Draw shapes** (key `3`): pinch thumb and index, draw a circle in the air, open
+   your fingers: it's recognised (`SHAPE: CIRCLE`) and redrawn as a clean green
+   circle. Try a triangle, a square, a rectangle, a straight line. Fist clears, `s`
+   saves the picture.
+4. **Sign letters** (key `4`): spell a word, e.g. **BUY** (four fingers, two
+   fingers, call me), open palm to finish it and hear it spoken.
+5. **Exercises** (key `5`): follow the routine on screen (and spoken): open and
    close, thumb-to-fingertip touches, count to five.
+6. **Control**: back in mode 1, press `m`, show **FIST → PEACE → THUMBS UP** to
+   unlock, click a PowerPoint window and swipe through slides.
 7. **Teach**: show your pinky alone (UNKNOWN), press `t`, type `PINKY PROMISE`,
    Enter, hold the pose: from now on it's recognised.
 8. **Results**: quit, then `python scripts/session_report.py` and open
@@ -74,7 +81,8 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Result / UI | `ui.py` | Skeleton, result panel, history and feature panels, keys |
 | Teaching | `teach.py` | Poses taught live with `t`, checked before the normal classifier |
 | Benchmark | `benchmark.py` | Times each pipeline stage (`--benchmark`) |
-| Air drawing | `air_draw.py` | Pinch to draw on the video, fist to clear |
+| Draw shapes | `air_draw.py` | Pinch to draw on the video, fist to clear; strokes go to the shape recogniser |
+| Shape recogniser | `shape_recognizer.py` | Line, circle, triangle, square or rectangle from a drawn stroke |
 | Exercise coach | `exercise_coach.py` | Guided hand exercises: counts, times and measures repetitions |
 | Speech | `speech.py` | Speaks text with the system's offline voice, in the background |
 | Sign letters | `sign_language.py` | Poses → ASL fingerspelling letters, spelled into words |
@@ -116,16 +124,30 @@ python app.py --person Alex             # your name in poses you teach (default:
 python app.py --mute                    # no speech (sign letters, exercise coach)
 ```
 
+The app works in **one mode at a time**, so pose labels, palm trails and drawings
+never pile up on the screen together:
+
+| Key | Mode | On screen |
+|---|---|---|
+| `1` | **Poses** (default) | Pose labels on the hands, gesture details, fingers up |
+| `2` | **Moving gestures** | Palm trail and a banner for swipes, wave, circle, clap and heart |
+| `3` | **Draw shapes** | Your drawing; shapes are recognised when you lift the pen |
+| `4` | **Sign letters** | Pose labels and the word being spelled (spoken aloud) |
+| `5` | **Exercises** | The exercise coach: current exercise, instruction, repetitions |
+
+Pressing the current mode's key again goes back to poses. `d`, `a` and `e` still work
+for modes 3, 4 and 5. The history saves what the current mode is about: poses in 1
+and 4, moving gestures in 2, drawn shapes in 3 (as `DRAWN CIRCLE`, ...), exercise
+results in 5.
+
 | Key | Action |
 |---|---|
+| `1`–`5` | Switch mode (see above) |
 | `q` / `Esc` | Quit (closing the window also works) |
 | `h` | Show/hide gesture history |
 | `f` | Show/hide the feature panel (for tuning) |
 | `c` | Clear all saved history |
-| `m` | Gesture control: off → presentation → media → off |
-| `d` | Air drawing on/off |
-| `a` | Sign letters on/off |
-| `e` | Hand exercise coach on/off (starts the routine) |
+| `m` | Gesture control: off → presentation → media → off (works in modes 1 and 2) |
 | `s` | Save a picture of the window to `data/snapshots/` |
 | `t` | Teach a new pose (type a name, Enter; Esc cancels) |
 | `w` | Full screen on/off (Esc also leaves full screen) |
@@ -159,9 +181,10 @@ Rules are checked in this order. Anything else is shown as UNKNOWN.
 
 ### Moving and two-hand gestures
 
-These follow the palm over the last second or two, so they work with any hand shape.
-Each one appears in a banner at the bottom of the window, is saved to the history once,
-and the pink line on screen shows the path the palm has taken.
+Press `2` for this mode. These follow the palm over the last second or two, so they
+work with any hand shape. Each one appears in a banner at the bottom of the window, is
+saved to the history once, and the pink line on screen shows the path the palm has
+taken.
 
 | Gesture | How |
 |---|---|
@@ -183,7 +206,8 @@ how many of the last 10 frames agreed on the gesture:
 ## Gesture control
 
 Control mode turns gestures into key presses. It is **off** until you press `m` (or
-start with `--control`), and the window shows `CONTROL: PRESENTATION` / `MEDIA` while
+start with `--control`), and works in modes 1 (poses) and 2 (moving gestures); in
+the other modes it is paused so drawing or spelling can't press keys. The window shows `CONTROL: PRESENTATION` / `MEDIA` while
 it is on, plus a flash such as `> NEXT SLIDE` every time it presses a key.
 
 | Gesture | Presentation | Media |
@@ -288,15 +312,34 @@ It also reports the frame rate the processing alone could reach, without waiting
 for the camera. Hand detection (MediaPipe) is normally the largest share; the rules,
 features and drawing take well under a millisecond each.
 
-## Air drawing
+## Draw shapes
 
-Press `d`. Touch your thumb and index fingertips together to put the pen down, move
-to draw, open them to lift the pen. Make a fist to clear. Press `s` to save the
-picture. Gesture control is paused while drawing.
+Press `3` (or `d`). Touch your thumb and index fingertips together to put the pen
+down, move to draw, open them to lift the pen. Make a fist to clear. Press `s` to save
+the picture.
+
+When the pen lifts (or your hand leaves the picture), the stroke is recognised
+(`shape_recognizer.py`). A recognised shape replaces the shaky stroke with a clean
+green outline, flashes `SHAPE: CIRCLE` and is saved to the history as `DRAWN CIRCLE`;
+anything else stays as drawn.
+
+| Shape | Draw | Recognised by |
+|---|---|---|
+| LINE | A straight stroke | Ends far apart, and the stroke stays close to the line between them |
+| CIRCLE | A loop back to where you started | Very round outline (circularity 4π·area/perimeter² near 1) |
+| SQUARE / RECTANGLE | Four sides back to the start | Outline fills its smallest box; sides within 1.3× of each other = square |
+| TRIANGLE | Three sides back to the start | Outline fills its smallest enclosing triangle |
+
+Closed shapes are measured on their convex hull (a rubber band around the stroke),
+so hand shake and the overshoot when you close a circle don't matter, and the square
+can be tilted. A stroke much longer than its outline is a scribble and is left alone.
+On simulated shaky drawing (the tests) shapes are recognised about 95–100% of the
+time and over 90% of scribbles are rejected. The thresholds are `SHAPE_*` in
+`config.py`.
 
 ## Sign letters
 
-Press `a`. These poses match letters of the American Sign Language (ASL)
+Press `4` (or `a`). These poses match letters of the American Sign Language (ASL)
 fingerspelling alphabet, and each one is added to the word on screen when it becomes
 stable:
 
@@ -325,7 +368,7 @@ apart.
 
 ## Hand exercise coach
 
-Press `e` to start a short guided routine. The screen shows the current exercise, the
+Press `5` (or `e`) to start a short guided routine. The screen shows the current exercise, the
 instruction and the repetition count; new exercises are also announced aloud.
 
 | Exercise | What to do | Counted when |
@@ -424,6 +467,13 @@ it is never graded on a hand it has already seen.
   swipe.
 - **Safe by default.** Control mode is off until asked for and then locked by a
   gesture password; tests use a fake keyboard and never press real keys.
+- **One mode at a time.** Poses, moving gestures and drawing all watch the same hand,
+  so showing them together was confusing (a pose label, a palm trail and a drawing at
+  once). Each mode shows and logs only its own output, chosen with a number key.
+- **Shapes by how they fill their outline, not by counting corners.** Counting
+  corners of a shaky stroke is unreliable (a hand-drawn square easily gets 5 or 6);
+  how much of its smallest box or triangle the outline fills is stable, and a circle
+  is told apart by roundness first.
 - **Generous heart check.** MediaPipe's fingertips are rough when two hands touch,
   so the heart allows a wider gap; the `f` panel shows the live values for tuning.
 

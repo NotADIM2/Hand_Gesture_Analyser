@@ -1,10 +1,18 @@
 """Display and user interaction (architecture step: RESULT / UI).
 
-Draws onto OpenCV frames: hand skeletons, palm trails, the result panel, a banner for
-moving and two-hand gestures, the active modes (control, air draw, sign letters) and
-their output, an optional gesture history panel and an optional feature panel for
-tuning thresholds. This module only
-draws what it is given; it never calls the detector or the database itself.
+The app works in one mode at a time, chosen with the number keys, so the screen only
+shows what that mode is about:
+
+    1 POSES            hand poses (labels on the hands, gesture details in the panel)
+    2 MOVING GESTURES  palm trails and a banner for swipes, wave, circle, clap, heart
+    3 DRAW SHAPES      pinch to draw; drawn shapes are recognised
+    4 SIGN LETTERS     poses spell words
+    5 EXERCISES        the hand exercise coach
+
+Draws onto OpenCV frames: hand skeletons, the result panel, the mode's output, an
+optional gesture history panel and an optional feature panel for tuning thresholds.
+This module only draws what it is given; it never calls the detector or the
+database itself.
 """
 import time
 from dataclasses import dataclass, field
@@ -44,10 +52,23 @@ KEY_FULLSCREEN = ord("w")
 KEY_EXERCISE = ord("e")
 KEY_ESC = 27
 
+POSES, MOTION, DRAW, SIGN, EXERCISE = "poses", "motion", "draw", "sign", "exercise"
+MODES = (POSES, MOTION, DRAW, SIGN, EXERCISE)    # in key order: 1 to 5
+MODE_TITLES = {POSES: "POSES", MOTION: "MOVING GESTURES", DRAW: "DRAW SHAPES",
+               SIGN: "SIGN LETTERS", EXERCISE: "EXERCISES"}
+# Number keys pick a mode; the old letter keys still work (d, a, e).
+MODE_KEYS = {ord(str(i)): mode for i, mode in enumerate(MODES, start=1)}
+MODE_KEYS.update({KEY_DRAW: DRAW, KEY_SIGN: SIGN, KEY_EXERCISE: EXERCISE})
+SHOWS_POSES = (POSES, SIGN)   # modes that label hand poses
+
 HELP_LINES = (
-    "q: quit  h: history  f: features  c: clear history  s: save picture  w: full screen",
-    "m: control  d: air draw  a: sign letters  e: exercises  t: teach a pose",
+    "1: poses  2: moving gestures  3: draw shapes  4: sign letters  5: exercises",
+    "m: control  t: teach  h: history  f: features  c: clear history  s: save  w: full screen  q: quit",
 )
+
+
+def mode_title(mode: str) -> str:
+    return f"MODE {MODES.index(mode) + 1}: {MODE_TITLES[mode]}"
 
 
 @dataclass
@@ -137,14 +158,16 @@ def finger_count_text(features: list[HandFeatures]) -> str:
 
 def result_lines(hand_count: int, results: list[GestureResult],
                  last_move: MotionEvent | None = None,
-                 features: list[HandFeatures] = ()) -> list[tuple[str, tuple]]:
-    lines = [(f"Hands detected: {hand_count}", WHITE)]
-    if features:
+                 features: list[HandFeatures] = (), mode: str = POSES) -> list[tuple[str, tuple]]:
+    lines = [(mode_title(mode), YELLOW), (f"Hands detected: {hand_count}", WHITE)]
+    if features and mode == POSES:
         lines.append((finger_count_text(features), WHITE))
-    if last_move is not None:
+    if last_move is not None and mode == MOTION:
         lines.append((f"Last move: {move_text(last_move)}", TRAIL))
     if not results:
         lines.append(("Status: NO HAND DETECTED", RED))
+        return lines
+    if mode not in SHOWS_POSES:
         return lines
     for r in results:
         colour = STATUS_COLOURS.get(r.status, ORANGE)
@@ -257,17 +280,25 @@ class Interface:
         status: list[str] = (),
         action: str | None = None,
         sign_text: str | None = None,
+        mode: str = POSES,
     ) -> np.ndarray:
+        # Only the current mode's output is drawn: pose labels in the pose modes,
+        # trails and the move banner in the moving gestures mode.
         for hand, result in zip(hands, results):
-            colour = STATUS_COLOURS.get(result.status, ORANGE)
-            draw_hand(frame, hand, f"{result.hand.upper()}: {result.gesture}", colour)
-        for trail in trails:
-            draw_trail(frame, trail)
+            if mode in SHOWS_POSES:
+                colour = STATUS_COLOURS.get(result.status, ORANGE)
+                draw_hand(frame, hand, f"{result.hand.upper()}: {result.gesture}", colour)
+            else:
+                draw_hand(frame, hand)
+        if mode == MOTION:
+            for trail in trails:
+                draw_trail(frame, trail)
 
-        _, result_height = draw_panel(frame, result_lines(len(hands), results, last_move, features), (10, 10), min_width=260)
+        lines = result_lines(len(hands), results, last_move, features, mode)
+        _, result_height = draw_panel(frame, lines, (10, 10), min_width=260)
         draw_panel(frame, [(f"FPS: {fps:.0f}", GREEN)], (frame.shape[1], 10))
         draw_panel(frame, [(line, ORANGE) for line in status], (10, 10 + result_height + 6), scale=0.5)
-        if moves:
+        if moves and mode == MOTION:
             draw_banner(frame, move_text(moves[-1]))
         if action:
             draw_banner(frame, f"> {action}", ORANGE, lift=110)

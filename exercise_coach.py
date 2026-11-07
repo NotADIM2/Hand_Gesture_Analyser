@@ -1,4 +1,4 @@
-"""Guided hand exercises with repetition counting (extra mode: EXERCISES, key e).
+"""Guided hand exercises with repetition counting (mode 5: EXERCISES).
 
 A short routine of three exercises, one after the other:
 

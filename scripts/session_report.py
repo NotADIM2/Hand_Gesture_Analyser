@@ -78,7 +78,7 @@ def exercise_section(exercises: list[ExerciseRecord]) -> str:
         for e in reversed(exercises)
     )
     return f"""<section class="card"><h2>Hand exercises</h2>
-<p class="muted">From the exercise coach (key e). An exercise tracker, not a medical assessment.</p>
+<p class="muted">From the exercise coach (mode 5). An exercise tracker, not a medical assessment.</p>
 {''.join(charts)}
 <div class="table-wrap"><table>
 <thead><tr><th>When</th><th>Exercise</th><th>Reps</th><th>Seconds</th><th>Sec/rep</th><th>Range</th></tr></thead>

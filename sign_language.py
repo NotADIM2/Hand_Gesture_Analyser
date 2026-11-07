@@ -1,4 +1,4 @@
-"""Spell words with sign-language letters (extra mode: SIGN LETTERS).
+"""Spell words with sign-language letters (mode 4: SIGN LETTERS).
 
 Several of the recognised poses match letters of the American Sign Language (ASL)
 fingerspelling alphabet; config.SIGN_LETTERS lists them. Each letter is added once,

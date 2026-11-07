@@ -4,9 +4,10 @@
     -> gesture analyzer (+ motion analyzer) -> controller (optional key presses)
     -> UI result (+ SQLite gesture history)
 
-Extra modes, switched with keys in the window: air drawing (d), sign letters (a,
-spoken aloud) and hand exercises (e).
-While one is on, gesture control is paused so the same gestures don't press keys.
+It works in one mode at a time, picked with the number keys in the window:
+1 poses (default), 2 moving gestures, 3 draw shapes (recognised when the pen lifts),
+4 sign letters (spoken aloud), 5 hand exercises. Gesture control (m) works in modes
+1 and 2 and is paused in the others, so the same gestures don't press keys.
 New poses can be taught live (t); --benchmark times every stage of the pipeline.
 
 Run:  python app.py            (see --help for options)
@@ -37,9 +38,11 @@ from sign_language import SignSpeller
 from speech import Speaker
 from teach import Teacher, TaughtGestures, WithTaughtGestures
 from ui import (
-    KEY_CLEAR, KEY_CONTROL, KEY_DRAW, KEY_ESC, KEY_EXERCISE, KEY_QUIT, KEY_SAVE, KEY_SIGN, KEY_TEACH,
-    FPSCounter, HistoryView, Interface,
+    DRAW, EXERCISE, KEY_CLEAR, KEY_CONTROL, KEY_ESC, KEY_QUIT, KEY_SAVE, KEY_TEACH, MODE_KEYS, MODE_TITLES,
+    MOTION, POSES, SHOWS_POSES, SIGN, FPSCounter, HistoryView, Interface,
 )
+
+CONTROL_MODES = (POSES, MOTION)   # modes in which gesture control may press keys
 
 
 def load_history(db: GestureDatabase, session_id: str) -> HistoryView:
@@ -50,24 +53,24 @@ def load_history(db: GestureDatabase, session_id: str) -> HistoryView:
     )
 
 
-def status_lines(controller: GestureController, password: GesturePassword, mode: str | None) -> list[str]:
+def status_lines(controller: GestureController, password: GesturePassword, mode: str) -> list[str]:
     lines = []
     if controller.enabled:
-        if mode:
-            state = "PAUSED"
+        if mode not in CONTROL_MODES:
+            state = "PAUSED (control works in modes 1 and 2)"
         elif password.unlocked:
             state = "ON"
         else:
             state = f"LOCKED {password.progress}/{len(password.sequence)}, show password"
         lines.append(f"CONTROL: {controller.profile.upper()} ({state})")
-    if mode == "draw":
-        lines.append("AIR DRAW: pinch to draw, fist clears")
-    if mode == "sign":
-        lines.append("SIGN LETTERS: palm = space, thumbs up = say it, swipe left = delete, wave = clear")
+    if mode == MOTION:
+        lines.append("Move one palm: swipe, wave or draw a circle. Two hands: clap or heart")
+    if mode == DRAW:
+        lines.append("Pinch thumb and index to draw, open them to finish, fist clears")
+        lines.append("Shapes: circle, triangle, square, rectangle, straight line")
+    if mode == SIGN:
+        lines.append("Palm = space, thumbs up = say it, swipe left = delete, wave = clear")
     return lines
-
-
-MODE_KEYS = {KEY_DRAW: "draw", KEY_SIGN: "sign", KEY_EXERCISE: "exercise"}
 
 
 def save_snapshot(frame) -> Path:
@@ -118,7 +121,7 @@ def run(
         speller = SignSpeller()
         coach = ExerciseCoach()
         speaker = Speaker(enabled=speak)
-        mode = None  # None, "draw", "sign" or "exercise"
+        mode = POSES
         last_action, last_action_at = None, 0.0
         ui = Interface(fullscreen=fullscreen)
         fps = FPSCounter()
@@ -160,10 +163,13 @@ def run(
             recent_moves = [m for m in recent_moves + moves if now - m.time < config.MOTION_DISPLAY_SECONDS]
             if moves:
                 last_move = moves[-1]
-            if mode == "draw":
-                canvas.update(frame.shape, hands, features, results)
+            drawn = []
+            if mode == DRAW:
+                drawn = canvas.update(frame.shape, hands, features, results)
+                for d in drawn:
+                    last_action, last_action_at = f"SHAPE: {d.shape.name}", now
                 canvas.overlay(frame)
-            elif mode == "sign":
+            elif mode == SIGN:
                 change = speller.update(results, moves)
                 if change:
                     last_action, last_action_at = change, now
@@ -171,7 +177,7 @@ def run(
                     speaker.say(speller.last_word)
                 elif change == "SAY":
                     speaker.say(speller.text)
-            elif mode == "exercise":
+            elif mode == EXERCISE:
                 for message in coach.update(hands, features, now):
                     last_action, last_action_at = message, now
                     if not message[0].isdigit():  # announce new exercises, not every repetition
@@ -182,16 +188,21 @@ def run(
             elif controller.enabled and not password.unlocked:
                 if password.update(results, now):
                     last_action, last_action_at = "CONTROL UNLOCKED", now
-            else:
+            if mode in CONTROL_MODES and password.unlocked:
                 for action in controller.update(results, moves, now):
                     last_action, last_action_at = action.label, now
 
             if db is not None:
-                for result in results:
-                    if result.newly_stable:
-                        db.insert(result.gesture, result.hand, session_id)
-                for move in moves:
-                    db.insert(move.gesture, move.hand, session_id)
+                # Log what the current mode is about: poses, moves or drawn shapes.
+                if mode in SHOWS_POSES:
+                    for result in results:
+                        if result.newly_stable:
+                            db.insert(result.gesture, result.hand, session_id)
+                if mode == MOTION:
+                    for move in moves:
+                        db.insert(move.gesture, move.hand, session_id)
+                for d in drawn:
+                    db.insert(f"DRAWN {d.shape.name}", d.hand, session_id)
                 # Only query history while its panel is open, and at most a few times a second.
                 if ui.show_history and time.monotonic() - history_loaded_at > config.HISTORY_REFRESH_SECONDS:
                     history = load_history(db, session_id)
@@ -199,7 +210,7 @@ def run(
             timer.lap("modes, control, history")
 
             status = status_lines(controller, password, mode)
-            if mode == "exercise":
+            if mode == EXERCISE:
                 status += coach.status_lines()
             if teacher.active:
                 status.append(teacher.status_line(now))
@@ -211,7 +222,8 @@ def run(
                 heart=measure_heart(*hands) if len(hands) == 2 and ui.show_features else None,
                 status=status,
                 action=last_action if now - last_action_at < config.CONTROL_DISPLAY_SECONDS else None,
-                sign_text=speller.text if mode == "sign" else None,
+                sign_text=speller.text if mode == SIGN else None,
+                mode=mode,
             )
             timer.lap("drawing")
             key = ui.show(frame)
@@ -244,11 +256,15 @@ def run(
                     print(f"Control mode: {profile or 'off'}")
             if key in MODE_KEYS:
                 wanted = MODE_KEYS[key]
-                mode = None if mode == wanted else wanted
-                canvas.clear()
-                speller.clear()
-                if mode == "exercise":
-                    speaker.say(coach.start())
+                # Pressing the current mode's key again goes back to poses.
+                new_mode = POSES if wanted == mode else wanted
+                if new_mode != mode:
+                    mode = new_mode
+                    canvas.clear()
+                    speller.clear()
+                    last_action, last_action_at = MODE_TITLES[mode], now
+                    if mode == EXERCISE:
+                        speaker.say(coach.start())
             if key == KEY_SAVE:
                 print(f"Saved {save_snapshot(frame)}")
             if key == KEY_TEACH and not teacher.active:
