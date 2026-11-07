@@ -8,6 +8,7 @@ shows what that mode is about:
     3 DRAW SHAPES      pinch to draw; drawn shapes are recognised
     4 SIGN LETTERS     poses spell words
     5 EXERCISES        the hand exercise coach
+    6 SIGN WORDS       basic sign-language words, spoken aloud
 
 Draws onto OpenCV frames: hand skeletons, the result panel, the mode's output, an
 optional gesture history panel and an optional feature panel for tuning thresholds.
@@ -52,17 +53,17 @@ KEY_FULLSCREEN = ord("w")
 KEY_EXERCISE = ord("e")
 KEY_ESC = 27
 
-POSES, MOTION, DRAW, SIGN, EXERCISE = "poses", "motion", "draw", "sign", "exercise"
-MODES = (POSES, MOTION, DRAW, SIGN, EXERCISE)    # in key order: 1 to 5
+POSES, MOTION, DRAW, SIGN, EXERCISE, WORDS = "poses", "motion", "draw", "sign", "exercise", "words"
+MODES = (POSES, MOTION, DRAW, SIGN, EXERCISE, WORDS)    # in key order: 1 to 6
 MODE_TITLES = {POSES: "POSES", MOTION: "MOVING GESTURES", DRAW: "DRAW SHAPES",
-               SIGN: "SIGN LETTERS", EXERCISE: "EXERCISES"}
+               SIGN: "SIGN LETTERS", EXERCISE: "EXERCISES", WORDS: "SIGN WORDS"}
 # Number keys pick a mode; the old letter keys still work (d, a, e).
 MODE_KEYS = {ord(str(i)): mode for i, mode in enumerate(MODES, start=1)}
 MODE_KEYS.update({KEY_DRAW: DRAW, KEY_SIGN: SIGN, KEY_EXERCISE: EXERCISE})
 SHOWS_POSES = (POSES, SIGN)   # modes that label hand poses
 
 HELP_LINES = (
-    "1: poses  2: moving gestures  3: draw shapes  4: sign letters  5: exercises",
+    "1: poses  2: moving gestures  3: draw shapes  4: sign letters  5: exercises  6: sign words",
     "m: control  t: teach  h: history  f: features  c: clear history  s: save  w: full screen  q: quit",
 )
 

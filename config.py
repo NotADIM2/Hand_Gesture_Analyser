@@ -217,3 +217,41 @@ SHAPE_BOX_FILL = 0.82                # outline fills this much of its smallest b
 SHAPE_TRIANGLE_FILL = 0.82           # outline fills this much of its smallest triangle = TRIANGLE (square ~0.6)
 SHAPE_SQUARE_RATIO = 1.3             # width/height within this (either way) = SQUARE
 SHAPE_COLOUR = (80, 220, 80)         # BGR: green outline of the recognised shape
+
+# --- Sign words (sign_words.py, mode 6) -------------------------------------------
+# Positions are in frame widths, hand measurements in palm lengths.
+SIGN_WINDOW_SECONDS = 1.6        # how much of each hand's recent movement is looked at
+SIGN_COOLDOWN_SECONDS = 1.0      # after a word, wait this long before the next
+SIGN_REPEAT_SECONDS = 3.0        # the same word again only after this long (not while held)
+SIGN_SHAPE_SHARE = 0.6           # a sign's hand shape must show in this share of the frames
+SIGN_HOLD_SECONDS = 0.6          # still signs (ME, YOU) are held this long
+SIGN_STILL = 0.04                # a hand moving less than this is still
+SIGN_SMOOTHING = 3               # frames averaged before counting movements (hides jitter)
+SIGN_MAX_STRAY = 0.25            # a straight movement strays at most this much (fraction of its length)
+SIGN_FLAT_O_TIPS = 0.5           # fingertips this close to the thumb tip = flattened O
+SIGN_FLAT_O_MIN_ANGLE = 110.0    # ...with fingers only partly bent (a fist is tighter)
+SIGN_FLAP = 0.3                  # GOODBYE: fingertips move this much towards the wrist and back
+SIGN_FLAP_SWINGS = 3
+SIGN_SNAP = 0.35                 # NO: index and middle tips close on the thumb and open again
+SIGN_SNAP_SWINGS = 3
+SIGN_HOOK = 0.25                 # WHO: the index tip bends in and out
+SIGN_HOOK_SWINGS = 3
+SIGN_WIGGLE = 0.2                # WAIT: fingertips moving in and out of the palm's plane
+SIGN_WIGGLE_SWINGS = 6           # ...swings counted over the four fingers of each hand
+SIGN_SHAKE = 0.03                # WHERE, SAME, WHAT: side to side
+SIGN_SHAKE_SWINGS = 3
+SIGN_NOD = 0.25                  # YES: the fist tilts forward and back (change in tilt)
+SIGN_NOD_SWINGS = 2
+SIGN_TAP = 0.015                 # WATER, DANGER: small up and down taps or slides
+SIGN_TAP_SWINGS = 3
+SIGN_CIRCLE_MIN_RADIUS = 0.02    # PLEASE, SORRY: rubbing in a circle
+SIGN_CIRCLE_MIN_TURN = 300.0
+SIGN_MOVE = 0.1                  # HELLO, THANK YOU, BAD, STOP, GOOD, HELP, GO: a clear movement
+SIGN_MOVE_SECONDS = 1.0          # ...made within this time
+SIGN_HIGH = 0.45                 # HELLO, HOME start in the top part of the picture (fraction of height)
+SIGN_FLIP_ANGLE = 100.0          # BAD: the palm turns over by at least this much (THANK YOU: under half)
+SIGN_EDGE = 0.7                  # STOP: the chopping hand's palm faces sideways
+SIGN_NEAR = 1.6                  # two hands this close (palm lengths) are touching or stacked
+SIGN_POINT_DEPTH = 0.6           # ME / YOU: the index points this much away from / towards the camera
+SIGN_TOGETHER = 0.8              # MORE: the hands come together and apart this much (palm lengths)
+SIGN_MAX_WORDS = 8               # words kept in the sentence on screen

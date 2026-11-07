@@ -6,7 +6,7 @@
 
 It works in one mode at a time, picked with the number keys in the window:
 1 poses (default), 2 moving gestures, 3 draw shapes (recognised when the pen lifts),
-4 sign letters (spoken aloud), 5 hand exercises. Gesture control (m) works in modes
+4 sign letters (spoken aloud), 5 hand exercises, 6 sign words (spoken aloud). Gesture control (m) works in modes
 1 and 2 and is paused in the others, so the same gestures don't press keys.
 New poses can be taught live (t); --benchmark times every stage of the pipeline.
 
@@ -35,11 +35,12 @@ from hand_detector import HandDetector
 from ml_classifier import KNNClassifier
 from motion_analyzer import MotionAnalyzer, measure_heart
 from sign_language import SignSpeller
+from sign_words import SignWords
 from speech import Speaker
 from teach import Teacher, TaughtGestures, WithTaughtGestures
 from ui import (
     DRAW, EXERCISE, KEY_CLEAR, KEY_CONTROL, KEY_ESC, KEY_QUIT, KEY_SAVE, KEY_TEACH, MODE_KEYS, MODE_TITLES,
-    MOTION, POSES, SHOWS_POSES, SIGN, FPSCounter, HistoryView, Interface,
+    MOTION, POSES, SHOWS_POSES, SIGN, WORDS, FPSCounter, HistoryView, Interface,
 )
 
 CONTROL_MODES = (POSES, MOTION)   # modes in which gesture control may press keys
@@ -70,6 +71,9 @@ def status_lines(controller: GestureController, password: GesturePassword, mode:
         lines.append("Shapes: circle, triangle, square, rectangle, straight line")
     if mode == SIGN:
         lines.append("Palm = space, thumbs up = say it, swipe left = delete, wave = clear")
+    if mode == WORDS:
+        lines.append("Sign a word: HELLO, THANK YOU, YES, NO, HELP, STOP ... (list in the README)")
+        lines.append("One-hand signs with only that hand in view; each word is spoken")
     return lines
 
 
@@ -119,6 +123,7 @@ def run(
         password = GesturePassword()
         canvas = AirCanvas()
         speller = SignSpeller()
+        signer = SignWords()
         coach = ExerciseCoach()
         speaker = Speaker(enabled=speak)
         mode = POSES
@@ -165,7 +170,7 @@ def run(
             recent_moves = [m for m in recent_moves + moves if now - m.time < config.MOTION_DISPLAY_SECONDS]
             if moves:
                 last_move = moves[-1]
-            drawn = []
+            drawn, signed = [], None
             if mode == DRAW:
                 drawn = canvas.update(frame.shape, hands, features, results)
                 for d in drawn:
@@ -179,6 +184,11 @@ def run(
                     speaker.say(speller.last_word)
                 elif change == "SAY":
                     speaker.say(speller.text)
+            elif mode == WORDS:
+                signed = signer.update(hands, features, frame.shape, now)
+                if signed:
+                    last_action, last_action_at = signed, now
+                    speaker.say(signed.lower())
             elif mode == EXERCISE:
                 for message in coach.update(hands, features, now):
                     last_action, last_action_at = message, now
@@ -205,6 +215,8 @@ def run(
                         db.insert(move.gesture, move.hand, session_id)
                 for d in drawn:
                     db.insert(f"DRAWN {d.shape.name}", d.hand, session_id)
+                if signed:
+                    db.insert(f"SIGN {signed}", hands[0].handedness if len(hands) == 1 else "Both", session_id)
                 # Only query history while its panel is open, and at most a few times a second.
                 if ui.show_history and time.monotonic() - history_loaded_at > config.HISTORY_REFRESH_SECONDS:
                     history = load_history(db, session_id)
@@ -227,7 +239,7 @@ def run(
                 heart=measure_heart(*hands) if len(hands) == 2 and ui.show_features else None,
                 status=status,
                 action=last_action if now - last_action_at < config.CONTROL_DISPLAY_SECONDS else None,
-                sign_text=speller.text if mode == SIGN else None,
+                sign_text=speller.text if mode == SIGN else signer.text if mode == WORDS else None,
                 mode=mode,
             )
             timer.lap("drawing")
@@ -267,6 +279,7 @@ def run(
                     mode = new_mode
                     canvas.clear()
                     speller.clear()
+                    signer.clear()
                     last_action, last_action_at = MODE_TITLES[mode], now
                     if mode == EXERCISE:
                         speaker.say(coach.start())

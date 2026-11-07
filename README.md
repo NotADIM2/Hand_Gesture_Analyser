@@ -14,7 +14,7 @@ machine-learning model.
 
 | | |
 |---|---|
-| **One mode at a time** | Number keys 1–5 switch between poses, moving gestures, drawing shapes, sign letters and exercises, so the screen only shows what you're doing |
+| **One mode at a time** | Number keys 1–6 switch between poses, moving gestures, drawing shapes, sign letters, exercises and sign words, so the screen only shows what you're doing |
 | **25 gestures** | 17 hand poses, 6 moving gestures (swipes, wave, circle), 2 two-hand gestures (clap, heart) |
 | **Teach new poses** | Press `t`, name a pose, show it for 2 seconds: it's recognised from then on, and committing its file shares it with everyone |
 | **Finger counting** | Fingers up on one or both hands, 0–10, in the poses mode |
@@ -22,11 +22,12 @@ machine-learning model.
 | **Gesture control** | Run a PowerPoint slideshow or your music player, unlocked by a gesture password |
 | **Draw shapes** | Pinch to draw in the air; circles, triangles, squares, rectangles and lines are recognised and redrawn cleanly |
 | **Sign letters, spoken** | Spell words with ASL fingerspelling letters; each finished word is spoken aloud, offline |
+| **Sign words, spoken** | 23 basic sign-language words (HELLO, THANK YOU, YES, NO, HELP, STOP, ...) from hand shape and movement, built into a sentence and spoken |
 | **Hand exercise coach** | Guided routine (open/close, thumb touches, count to five) with repetition counting, timing, range of motion and progress in the report |
 | **History and reports** | Every gesture saved to SQLite; HTML session report with charts; accuracy report per gesture and per person |
 | **Honest feedback** | Shows how many of the last 10 frames agree, never a made-up confidence % |
 | **Speed benchmark** | `--benchmark` times every pipeline stage and saves a table of averages |
-| **Tested** | 300+ automated tests, no webcam needed, run on every push by GitHub Actions |
+| **Tested** | 340+ automated tests, no webcam needed, run on every push by GitHub Actions |
 
 ## Demo in 5 minutes
 
@@ -50,11 +51,15 @@ The top left of the window always says which mode you're in (`MODE 1: POSES`).
    fingers, call me), open palm to finish it and hear it spoken.
 5. **Exercises** (key `5`): follow the routine on screen (and spoken): open and
    close, thumb-to-fingertip touches, count to five.
-6. **Control**: back in mode 1, press `m`, show **FIST → PEACE → THUMBS UP** to
+6. **Sign words** (key `6`): with one hand, point at the camera (**YOU**), make a
+   flat hand and move it straight down (**THANK YOU**); with both hands, rest a
+   thumbs-up on a flat hand and lift both (**HELP**). Each word is spoken and added
+   to the sentence on screen.
+7. **Control**: back in mode 1, press `m`, show **FIST → PEACE → THUMBS UP** to
    unlock, click a PowerPoint window and swipe through slides.
-7. **Teach**: show your pinky alone (UNKNOWN), press `t`, type `PINKY PROMISE`,
+8. **Teach**: show your pinky alone (UNKNOWN), press `t`, type `PINKY PROMISE`,
    Enter, hold the pose: from now on it's recognised.
-8. **Results**: quit, then `python scripts/session_report.py` and open
+9. **Results**: quit, then `python scripts/session_report.py` and open
    `reports/session_report.html`; `python scripts/evaluate.py` for accuracy, rules vs ML.
 
 ![Session report: most used gestures, hands used and gestures per session](docs/session_report.png)
@@ -86,6 +91,7 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Exercise coach | `exercise_coach.py` | Guided hand exercises: counts, times and measures repetitions |
 | Speech | `speech.py` | Speaks text with the system's offline voice, in the background |
 | Sign letters | `sign_language.py` | Poses → ASL fingerspelling letters, spelled into words |
+| Sign words | `sign_words.py` | Hand shape + movement over the last second → 23 basic sign-language words |
 | ML classifier | `ml_classifier.py` | k-nearest-neighbours alternative to the rules (`--classifier ml`) |
 | Session report | `scripts/session_report.py` | History database → HTML page with charts |
 | Accuracy report | `scripts/evaluate.py` | Per-gesture / per-person accuracy and confusion on recorded hands |
@@ -134,15 +140,16 @@ never pile up on the screen together:
 | `3` | **Draw shapes** | Your drawing; shapes are recognised when you lift the pen |
 | `4` | **Sign letters** | Pose labels and the word being spelled (spoken aloud) |
 | `5` | **Exercises** | The exercise coach: current exercise, instruction, repetitions |
+| `6` | **Sign words** | The sentence of signed words (each spoken aloud) |
 
 Pressing the current mode's key again goes back to poses. `d`, `a` and `e` still work
 for modes 3, 4 and 5. The history saves what the current mode is about: poses in 1
 and 4, moving gestures in 2, drawn shapes in 3 (as `DRAWN CIRCLE`, ...), exercise
-results in 5.
+results in 5, signed words in 6 (as `SIGN HELLO`, ...).
 
 | Key | Action |
 |---|---|
-| `1`–`5` | Switch mode (see above) |
+| `1`–`6` | Switch mode (see above) |
 | `q` / `Esc` | Quit (closing the window also works) |
 | `h` | Show/hide gesture history |
 | `f` | Show/hide the feature panel (for tuning) |
@@ -381,6 +388,48 @@ signs, and letters that differ only in small thumb positions (A, S, M, N, T and 
 are all closed fists, and R crosses two fingers): the measurements can't tell those
 apart.
 
+## Sign words
+
+Press `6`. These are 23 everyday signs, based on American Sign Language (ASL). Each
+recognised word appears on screen, is added to the sentence and is spoken aloud.
+
+**What the app can and can't see.** It tracks hands only, not the face or body. So
+it recognises each sign by its **hand shape** and **movement**; where a sign is made
+(forehead, chin, chest) is either judged by how high the hand is in the picture
+(HELLO, HOME) or not checked. The table says how to sign each word *for this app*.
+Make one-hand signs with only that hand in view, and two-hand signs with both.
+
+| Word | Hands | Sign it like this |
+|---|---|---|
+| HELLO | 1 | Flat hand up near your forehead, moved straight out to the side (a salute) |
+| GOODBYE | 1 | Open hand held up, fingers folding down and up together from the knuckles |
+| PLEASE | 1 | Flat hand rubbed in a circle (over your chest) |
+| THANK YOU | 1 | Flat hand from your chin straight down and forward, palm staying the same way |
+| SORRY | 1 | Fist rubbed in a circle (over your chest) |
+| YES | 1 | Fist nodding forward and back from the wrist |
+| NO | 1 | Index and middle fingers snapping down onto the thumb, twice |
+| WHO | 1 | Thumb and index out (L shape), the index bending and straightening |
+| WHERE | 1 | Index finger up, shaken side to side |
+| BAD | 1 | Flat hand from your lips down, turning the palm over as it goes |
+| ME | 1 | Index pointing at your own chest (away from the camera), held still |
+| YOU | 1 | Index pointing at the camera, held still |
+| SAME | 1 | Y shape (thumb and pinky out) moved side to side |
+| HOME | 1 | Fingertips gathered on the thumb (flattened O), moved a short way up your cheek |
+| WATER | 1 | W shape (index, middle and ring up), tapping small up and down |
+| WHAT | 2 | Both flat hands, palms up, shaken side to side |
+| GOOD | 2 | Flat hand from your lips down onto the other flat hand, palm facing you |
+| STOP | 2 | The edge of one flat hand chops down onto the other flat hand |
+| HELP | 2 | Thumbs-up fist resting on the other flat hand, both lifted up together |
+| MORE | 2 | Both hands in a flattened O, fingertips tapping together, apart and together |
+| WAIT | 2 | Both flat hands held still, fingers wiggling |
+| GO | 2 | Both index fingers pointing, thrust forward (or the same way) together |
+| DANGER | 2 | Two fists together, one sliding up the other repeatedly |
+
+A word is said once even while the sign is held, and there is a short pause (1 s)
+before the next one. Each sign is tested as a short synthetic video, with landmark
+jitter, the left hand and faster or slower signing, in `tests/test_sign_words.py`.
+The thresholds are `SIGN_*` in `config.py`.
+
 ## Hand exercise coach
 
 Press `5` (or `e`) to start a short guided routine. The screen shows the current exercise, the
@@ -489,6 +538,10 @@ it is never graded on a hand it has already seen.
   corners of a shaky stroke is unreliable (a hand-drawn square easily gets 5 or 6);
   how much of its smallest box or triangle the outline fills is stable, and a circle
   is told apart by roundness first.
+- **Sign words from hands only.** The signs are made at the forehead, chin or chest,
+  but the app only tracks hands; adding face and body tracking would roughly double
+  the work per frame. Hand shape plus movement tells these 23 signs apart, and the
+  hand's height in the picture stands in for the face where it matters.
 - **Generous heart check.** MediaPipe's fingertips are rough when two hands touch,
   so the heart allows a wider gap; the `f` panel shows the live values for tuning.
 
