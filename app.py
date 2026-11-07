@@ -4,7 +4,8 @@
     -> gesture analyzer (+ motion analyzer) -> controller (optional key presses)
     -> UI result (+ SQLite gesture history)
 
-Extra modes, switched with keys in the window: air drawing (d) and sign letters (a).
+Extra modes, switched with keys in the window: air drawing (d), sign letters (a,
+spoken aloud) and hand exercises (e).
 While one is on, gesture control is paused so the same gestures don't press keys.
 New poses can be taught live (t); --benchmark times every stage of the pipeline.
 
@@ -26,15 +27,17 @@ from benchmark import StageTimer
 from camera import Camera, CameraError, to_rgb
 from controller import GestureController, GesturePassword
 from database import GestureDatabase
+from exercise_coach import ExerciseCoach
 from feature_extractor import extract_features
 from gesture_analyzer import GestureAnalyzer, RuleBasedClassifier
 from hand_detector import HandDetector
 from ml_classifier import KNNClassifier
 from motion_analyzer import MotionAnalyzer, measure_heart
 from sign_language import SignSpeller
+from speech import Speaker
 from teach import Teacher, TaughtGestures, WithTaughtGestures
 from ui import (
-    KEY_CLEAR, KEY_CONTROL, KEY_DRAW, KEY_ESC, KEY_QUIT, KEY_SAVE, KEY_SIGN, KEY_TEACH,
+    KEY_CLEAR, KEY_CONTROL, KEY_DRAW, KEY_ESC, KEY_EXERCISE, KEY_QUIT, KEY_SAVE, KEY_SIGN, KEY_TEACH,
     FPSCounter, HistoryView, Interface,
 )
 
@@ -60,8 +63,11 @@ def status_lines(controller: GestureController, password: GesturePassword, mode:
     if mode == "draw":
         lines.append("AIR DRAW: pinch to draw, fist clears")
     if mode == "sign":
-        lines.append("SIGN LETTERS: palm = space, swipe left = delete, wave = clear")
+        lines.append("SIGN LETTERS: palm = space, thumbs up = say it, swipe left = delete, wave = clear")
     return lines
+
+
+MODE_KEYS = {KEY_DRAW: "draw", KEY_SIGN: "sign", KEY_EXERCISE: "exercise"}
 
 
 def save_snapshot(frame) -> Path:
@@ -89,6 +95,7 @@ def run(
     benchmark: bool = False,
     fullscreen: bool = False,
     person: str | None = None,
+    speak: bool = True,
 ) -> int:
     session_id = uuid.uuid4().hex[:8]
     camera = Camera(index=camera_index)
@@ -109,7 +116,9 @@ def run(
         password = GesturePassword()
         canvas = AirCanvas()
         speller = SignSpeller()
-        mode = None  # None, "draw" or "sign"
+        coach = ExerciseCoach()
+        speaker = Speaker(enabled=speak)
+        mode = None  # None, "draw", "sign" or "exercise"
         last_action, last_action_at = None, 0.0
         ui = Interface(fullscreen=fullscreen)
         fps = FPSCounter()
@@ -158,6 +167,18 @@ def run(
                 change = speller.update(results, moves)
                 if change:
                     last_action, last_action_at = change, now
+                if change == "SPACE":
+                    speaker.say(speller.last_word)
+                elif change == "SAY":
+                    speaker.say(speller.text)
+            elif mode == "exercise":
+                for message in coach.update(hands, features, now):
+                    last_action, last_action_at = message, now
+                    if not message[0].isdigit():  # announce new exercises, not every repetition
+                        speaker.say(message.replace("NEXT: ", "Next: ").capitalize())
+                for done in coach.take_results():
+                    if db is not None:
+                        db.insert_exercise(done.exercise, done.reps, done.seconds, done.detail, session_id)
             elif controller.enabled and not password.unlocked:
                 if password.update(results, now):
                     last_action, last_action_at = "CONTROL UNLOCKED", now
@@ -178,6 +199,8 @@ def run(
             timer.lap("modes, control, history")
 
             status = status_lines(controller, password, mode)
+            if mode == "exercise":
+                status += coach.status_lines()
             if teacher.active:
                 status.append(teacher.status_line(now))
             if benchmark:
@@ -219,11 +242,13 @@ def run(
                     if profile is None:
                         password.lock()
                     print(f"Control mode: {profile or 'off'}")
-            if key in (KEY_DRAW, KEY_SIGN):
-                wanted = "draw" if key == KEY_DRAW else "sign"
+            if key in MODE_KEYS:
+                wanted = MODE_KEYS[key]
                 mode = None if mode == wanted else wanted
                 canvas.clear()
                 speller.clear()
+                if mode == "exercise":
+                    speaker.say(coach.start())
             if key == KEY_SAVE:
                 print(f"Saved {save_snapshot(frame)}")
             if key == KEY_TEACH and not teacher.active:
@@ -271,11 +296,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--benchmark", action="store_true", help="time each pipeline stage; summary saved on exit")
     parser.add_argument("--fullscreen", action="store_true", help="start full screen (w toggles it in the window)")
     parser.add_argument("--person", help="your name, saved in poses you teach (default: git user.name)")
+    parser.add_argument("--mute", action="store_true", help="don't speak (sign letters, exercise coach)")
     args = parser.parse_args(argv)
     return run(
         camera_index=args.camera, db_path=None if args.no_history else args.db,
         control=args.control, classifier=args.classifier, benchmark=args.benchmark,
-        fullscreen=args.fullscreen, person=args.person,
+        fullscreen=args.fullscreen, person=args.person, speak=not args.mute,
     )
 
 

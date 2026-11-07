@@ -1,7 +1,8 @@
 """Turn the gesture history database into an HTML report with charts.
 
 Shows totals, the most used gestures (hand poses vs moving / two-hand gestures),
-which hands were used, activity per session, and a table of sessions. The page is a
+which hands were used, activity per session, a table of sessions, and the results of
+the hand exercise coach over time. The page is a
 single self-contained file (charts are inline SVG), so it opens offline in any browser.
 
 Usage:
@@ -21,7 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import config  # noqa: E402
-from database import GestureDatabase, GestureRecord  # noqa: E402
+from database import ExerciseRecord, GestureDatabase, GestureRecord  # noqa: E402
 from gesture_analyzer import GESTURES  # noqa: E402
 from motion_analyzer import MOTION_GESTURES, TWO_HAND_GESTURES  # noqa: E402
 
@@ -51,6 +52,37 @@ def load_records(db_path: Path) -> list[GestureRecord]:
         return []
     with GestureDatabase(db_path) as db:
         return list(reversed(db.get_history(limit=10**9)))
+
+
+def load_exercises(db_path: Path) -> list[ExerciseRecord]:
+    if not Path(db_path).is_file():
+        return []
+    with GestureDatabase(db_path) as db:
+        return db.get_exercises()
+
+
+def exercise_section(exercises: list[ExerciseRecord]) -> str:
+    """Results table plus seconds per repetition over time, one chart per exercise."""
+    if not exercises:
+        return ""
+    charts = []
+    for name in dict.fromkeys(e.exercise for e in exercises):
+        recent = [e for e in exercises if e.exercise == name][-10:]
+        rows = [(datetime.fromisoformat(e.timestamp).strftime("%d %b %H:%M"),
+                 round(e.seconds / e.reps, 1) if e.reps else 0, "exercise") for e in recent]
+        charts.append(f"<h3>{html.escape(name)}: seconds per repetition (lower = faster)</h3>{bar_chart(rows, ' s')}")
+    table = "".join(
+        f"<tr><td>{datetime.fromisoformat(e.timestamp):%d %b %Y %H:%M}</td><td>{html.escape(e.exercise)}</td>"
+        f"<td>{e.reps}</td><td>{e.seconds:.1f}</td><td>{e.seconds / e.reps if e.reps else 0:.1f}</td>"
+        f"<td>{html.escape(e.detail or '')}</td></tr>"
+        for e in reversed(exercises)
+    )
+    return f"""<section class="card"><h2>Hand exercises</h2>
+<p class="muted">From the exercise coach (key e). An exercise tracker, not a medical assessment.</p>
+{''.join(charts)}
+<div class="table-wrap"><table>
+<thead><tr><th>When</th><th>Exercise</th><th>Reps</th><th>Seconds</th><th>Sec/rep</th><th>Range</th></tr></thead>
+<tbody>{table}</tbody></table></div></section>"""
 
 
 def group_sessions(records: list[GestureRecord]) -> list[Session]:
@@ -83,7 +115,8 @@ def bar_chart(rows: list[tuple[str, int, str]], unit: str = "") -> str:
     return "".join(parts)
 
 
-def build_report(records: list[GestureRecord], title: str = "Gesture session report") -> str:
+def build_report(records: list[GestureRecord], title: str = "Gesture session report",
+                 exercises: list[ExerciseRecord] = ()) -> str:
     sessions = group_sessions(records)
     counts = Counter(r.gesture for r in records)
     hands = Counter((r.hand or "-") for r in records)
@@ -139,6 +172,8 @@ h2 {{ font-size:17px; margin:0 0 12px; }}
 .label, .value {{ font-size:12px; fill:var(--text); }}
 .bar.pose {{ fill:var(--pose); }} .bar.moving {{ fill:var(--moving); }} .bar.two-hand {{ fill:var(--two); }}
 .bar.other {{ fill:var(--other); }} .bar.hand {{ fill:var(--hand); }} .bar.session {{ fill:var(--session); }}
+.bar.exercise {{ fill:var(--hand); }}
+h3 {{ font-size:14px; margin:14px 0 6px; }}
 .legend span {{ display:inline-block; margin-right:14px; font-size:13px; }}
 .dot {{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:middle; }}
 .table-wrap {{ overflow-x:auto; }}
@@ -161,6 +196,7 @@ th, td {{ text-align:left; padding:6px 8px; border-bottom:1px solid var(--line);
 <section class="card"><h2>Sessions</h2><div class="table-wrap"><table>
 <thead><tr><th>Started</th><th>Minutes</th><th>Gestures</th><th>Most used</th></tr></thead>
 <tbody>{table}</tbody></table></div></section>
+{exercise_section(list(exercises))}
 </main></body></html>
 """
 
@@ -173,15 +209,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     records = load_records(args.db)
+    exercises = load_exercises(args.db)
     title = "Gesture session report"
     if args.session:
         sessions = group_sessions(records)
         wanted = sessions[-1].session_id if args.session == "latest" and sessions else args.session
         records = [r for r in records if r.session_id == wanted]
+        exercises = [e for e in exercises if e.session_id == wanted]
         title += f" (session {wanted})"
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(build_report(records, title), encoding="utf-8")
+    args.out.write_text(build_report(records, title, exercises), encoding="utf-8")
     print(f"{len(records)} records -> {args.out}")
     return 0
 

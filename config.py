@@ -171,6 +171,18 @@ SIGN_LETTERS = {
 }
 SIGN_MAX_LENGTH = 24
 
+# --- Exercise coach (exercise_coach.py) -----------------------------------------
+# (exercise, repetitions) in order. Names: OPEN AND CLOSE, THUMB TOUCHES, COUNT TO FIVE.
+EXERCISE_ROUTINE = (("OPEN AND CLOSE", 10), ("THUMB TOUCHES", 3), ("COUNT TO FIVE", 3))
+# Average finger bend angle: at least this = hand open, at most this = fist.
+EXERCISE_OPEN_ANGLE = 150.0
+EXERCISE_CLOSED_ANGLE = 110.0
+# Thumb touches (fraction of palm size): touching below TOUCH, let go above RELEASE.
+EXERCISE_TOUCH_RATIO = 0.35
+EXERCISE_RELEASE_RATIO = 0.55
+# Count to five: frames a finger count must be held before it counts.
+EXERCISE_HOLD_FRAMES = 5
+
 # --- Interface (ui.py) -------------------------------------------------------
 WINDOW_NAME = "Hand Gesture Analyser"
 HISTORY_REFRESH_SECONDS = 0.5

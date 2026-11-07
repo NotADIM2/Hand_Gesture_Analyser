@@ -41,11 +41,12 @@ KEY_SIGN = ord("a")
 KEY_SAVE = ord("s")
 KEY_TEACH = ord("t")
 KEY_FULLSCREEN = ord("w")
+KEY_EXERCISE = ord("e")
 KEY_ESC = 27
 
 HELP_LINES = (
-    "q: quit   h: history   f: features   c: clear history   s: save picture",
-    "m: control mode   d: air draw   a: sign letters   t: teach a new pose   w: full screen",
+    "q: quit  h: history  f: features  c: clear history  s: save picture  w: full screen",
+    "m: control  d: air draw  a: sign letters  e: exercises  t: teach a pose",
 )
 
 

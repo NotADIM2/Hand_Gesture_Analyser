@@ -26,6 +26,15 @@ CREATE TABLE IF NOT EXISTS gesture_history (
     session_id  TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_history_session ON gesture_history(session_id);
+CREATE TABLE IF NOT EXISTS exercise_results (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    exercise    TEXT NOT NULL,
+    reps        INTEGER NOT NULL,
+    seconds     REAL NOT NULL,
+    detail      TEXT,
+    timestamp   TEXT NOT NULL,
+    session_id  TEXT
+);
 """
 
 _STOP = object()
@@ -36,6 +45,17 @@ class GestureRecord:
     id: int
     gesture: str
     hand: str | None
+    timestamp: str
+    session_id: str | None
+
+
+@dataclass(frozen=True)
+class ExerciseRecord:
+    id: int
+    exercise: str
+    reps: int
+    seconds: float
+    detail: str | None
     timestamp: str
     session_id: str | None
 
@@ -67,6 +87,16 @@ class GestureDatabase:
         self._submit(
             "INSERT INTO gesture_history (gesture, hand, timestamp, session_id) VALUES (?, ?, ?, ?)",
             (gesture, hand, when, session_id),
+        )
+
+    def insert_exercise(self, exercise: str, reps: int, seconds: float, detail: str = "",
+                        session_id: str | None = None, timestamp: datetime | None = None) -> None:
+        """Queue a finished exercise (from the exercise coach). Returns immediately."""
+        when = (timestamp or datetime.now()).isoformat(timespec="seconds")
+        self._submit(
+            "INSERT INTO exercise_results (exercise, reps, seconds, detail, timestamp, session_id) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (exercise, reps, seconds, detail, when, session_id),
         )
 
     def clear(self, session_id: str | None = None) -> None:
@@ -102,6 +132,12 @@ class GestureDatabase:
             params = (session_id,)
         sql += " GROUP BY gesture ORDER BY COUNT(*) DESC, gesture"
         return dict(self._read(sql, params))
+
+    def get_exercises(self) -> list[ExerciseRecord]:
+        """Every finished exercise, oldest first."""
+        rows = self._read(
+            "SELECT id, exercise, reps, seconds, detail, timestamp, session_id FROM exercise_results ORDER BY id", ())
+        return [ExerciseRecord(*row) for row in rows]
 
     def total(self, session_id: str | None = None) -> int:
         return sum(self.count_gestures(session_id).values())

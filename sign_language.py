@@ -5,8 +5,9 @@ fingerspelling alphabet; config.SIGN_LETTERS lists them. Each letter is added on
 when its pose becomes STABLE. To repeat a letter, drop the hand or change pose and
 come back.
 
-    OPEN PALM  -> space        SWIPE LEFT -> delete the last letter
-    WAVE       -> clear everything
+    OPEN PALM  -> space (and the finished word is spoken aloud)
+    THUMBS UP  -> speak everything spelled so far
+    SWIPE LEFT -> delete the last letter      WAVE -> clear everything
 
 This is a subset of the alphabet: letters that need motion (J, Z) or poses the rules
 can't tell apart yet are not included. More letters can be taught: a pose taught
@@ -15,7 +16,7 @@ with a one-character name (e.g. I or K, see teach.py) is spelled as that letter.
 from typing import Iterable
 
 import config
-from gesture_analyzer import OPEN_PALM, GestureResult
+from gesture_analyzer import OPEN_PALM, THUMBS_UP, GestureResult
 from motion_analyzer import SWIPE_LEFT, WAVE, MotionEvent
 
 
@@ -31,7 +32,7 @@ class SignSpeller:
         self.text = ""
 
     def update(self, results: Iterable[GestureResult], moves: Iterable[MotionEvent]) -> str | None:
-        """Feed this frame's gestures; returns what changed ("A", "SPACE", "DELETE", "CLEAR") or None."""
+        """Feed this frame's gestures; returns what changed ("A", "SPACE", "SAY", "DELETE", "CLEAR") or None."""
         change = None
         for move in moves:
             if move.gesture == SWIPE_LEFT and self.text:
@@ -43,7 +44,10 @@ class SignSpeller:
         for result in results:
             if not result.newly_stable:
                 continue
-            if result.gesture == OPEN_PALM:
+            if result.gesture == THUMBS_UP:
+                if self.text.strip():
+                    change = "SAY"
+            elif result.gesture == OPEN_PALM:
                 if self.text and not self.text.endswith(" "):
                     self._add(" ")
                     change = "SPACE"
@@ -52,6 +56,11 @@ class SignSpeller:
                 self._add(letter)
                 change = letter
         return change
+
+    @property
+    def last_word(self) -> str:
+        words = self.text.split()
+        return words[-1] if words else ""
 
     def clear(self) -> None:
         self.text = ""

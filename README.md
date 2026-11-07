@@ -20,7 +20,8 @@ machine-learning model.
 | **Two classifiers** | Geometric rules (default) or a trained k-NN model (`--classifier ml`), compared on real hands |
 | **Gesture control** | Run a PowerPoint slideshow or your music player, unlocked by a gesture password |
 | **Air drawing** | Pinch to draw on the video, fist to clear, `s` to save the picture |
-| **Sign letters** | Spell words with 9 ASL fingerspelling letters |
+| **Sign letters, spoken** | Spell words with ASL fingerspelling letters; each finished word is spoken aloud, offline |
+| **Hand exercise coach** | Guided routine (open/close, thumb touches, count to five) with repetition counting, timing, range of motion and progress in the report |
 | **History and reports** | Every gesture saved to SQLite; HTML session report with charts; accuracy report per gesture and per person |
 | **Honest feedback** | Shows how many of the last 10 frames agree, never a made-up confidence % |
 | **Speed benchmark** | `--benchmark` times every pipeline stage and saves a table of averages |
@@ -42,9 +43,11 @@ python app.py
 4. **Sign letters**: press `a`, spell a word, e.g. **BUY** (four fingers, two fingers, call me).
 5. **Control**: press `m`, show **FIST → PEACE → THUMBS UP** to unlock, click a
    PowerPoint window and swipe through slides.
-6. **Teach**: show your pinky alone (UNKNOWN), press `t`, type `PINKY PROMISE`,
+6. **Exercises**: press `e` and follow the routine on screen (and spoken): open and
+   close, thumb-to-fingertip touches, count to five.
+7. **Teach**: show your pinky alone (UNKNOWN), press `t`, type `PINKY PROMISE`,
    Enter, hold the pose: from now on it's recognised.
-7. **Results**: quit, then `python scripts/session_report.py` and open
+8. **Results**: quit, then `python scripts/session_report.py` and open
    `reports/session_report.html`; `python scripts/evaluate.py` for accuracy, rules vs ML.
 
 ![Session report: most used gestures, hands used and gestures per session](docs/session_report.png)
@@ -72,6 +75,8 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Teaching | `teach.py` | Poses taught live with `t`, checked before the normal classifier |
 | Benchmark | `benchmark.py` | Times each pipeline stage (`--benchmark`) |
 | Air drawing | `air_draw.py` | Pinch to draw on the video, fist to clear |
+| Exercise coach | `exercise_coach.py` | Guided hand exercises: counts, times and measures repetitions |
+| Speech | `speech.py` | Speaks text with the system's offline voice, in the background |
 | Sign letters | `sign_language.py` | Poses → ASL fingerspelling letters, spelled into words |
 | ML classifier | `ml_classifier.py` | k-nearest-neighbours alternative to the rules (`--classifier ml`) |
 | Session report | `scripts/session_report.py` | History database → HTML page with charts |
@@ -108,6 +113,7 @@ python app.py --classifier ml           # recognise poses with the trained model
 python app.py --fullscreen              # start full screen (w toggles)
 python app.py --benchmark               # time every pipeline stage
 python app.py --person Alex             # your name in poses you teach (default: git user.name)
+python app.py --mute                    # no speech (sign letters, exercise coach)
 ```
 
 | Key | Action |
@@ -119,6 +125,7 @@ python app.py --person Alex             # your name in poses you teach (default:
 | `m` | Gesture control: off → presentation → media → off |
 | `d` | Air drawing on/off |
 | `a` | Sign letters on/off |
+| `e` | Hand exercise coach on/off (starts the routine) |
 | `s` | Save a picture of the window to `data/snapshots/` |
 | `t` | Teach a new pose (type a name, Enter; Esc cancels) |
 | `w` | Full screen on/off (Esc also leaves full screen) |
@@ -301,7 +308,11 @@ stable:
 | L SIGN | L | | CALL ME | Y |
 | FIST | S | | | |
 
-Open palm adds a space, swipe left deletes the last letter, wave clears everything.
+Open palm adds a space and **speaks the finished word aloud**; thumbs up speaks
+everything spelled so far. Swipe left deletes the last letter, wave clears everything.
+Speech uses the voice built into the operating system (Windows System.Speech, `say`
+on macOS, `espeak` on Linux), works offline, and runs in the background so the video
+never pauses. `--mute` turns it off.
 To repeat a letter, change pose (or lower your hand) and show it again. Gesture
 control is paused while spelling.
 
@@ -311,6 +322,27 @@ it as that letter. What can't be taught: letters that need motion (J, Z), two-ha
 signs, and letters that differ only in small thumb positions (A, S, M, N, T and E
 are all closed fists, and R crosses two fingers): the measurements can't tell those
 apart.
+
+## Hand exercise coach
+
+Press `e` to start a short guided routine. The screen shows the current exercise, the
+instruction and the repetition count; new exercises are also announced aloud.
+
+| Exercise | What to do | Counted when |
+|---|---|---|
+| OPEN AND CLOSE (×10) | Open the hand wide, then make a fist | Fist → open again |
+| THUMB TOUCHES (×3) | Touch the thumb to the index, middle, ring and little fingertip in turn | A full round, in order |
+| COUNT TO FIVE (×3) | Show 1, 2, 3, 4, then 5 fingers | Each number held briefly, in order, up to five |
+
+For each exercise it records the repetitions and time, and for open-and-close how
+far the fingers open and close (average bend angle at the middle finger joints, 180°
+= straight). Results are saved in the history database, and the session report has
+a **Hand exercises** section with seconds per repetition over time, so you can see
+progress across days. Change the routine or the thresholds in `config.py`
+(`EXERCISE_ROUTINE`, `EXERCISE_OPEN_ANGLE`, ...).
+
+It's an exercise tracker for practice and desk breaks, **not a medical device**: it
+doesn't diagnose or assess anything.
 
 ## Accuracy on real hands
 
@@ -336,8 +368,8 @@ python scripts/session_report.py --session latest   # just the last run
 ```
 
 Writes `reports/session_report.html`: totals, the most used gestures (hand poses vs
-moving and two-hand gestures), which hands were used, gestures per session and a
-table of sessions. It is a single file with no internet needed; open it in any
+moving and two-hand gestures), which hands were used, gestures per session, a
+table of sessions, and hand exercise results over time. It is a single file with no internet needed; open it in any
 browser. It is built from your local history, so it isn't committed.
 
 ## Rules vs machine learning
