@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Downloaded model (python scripts/download_model.py)
+models/*.task
+models/*.part
+
+# Local gesture history
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

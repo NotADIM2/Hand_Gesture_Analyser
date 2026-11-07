@@ -1,0 +1,3 @@
+# MediaPipe also installs opencv-contrib-python and numpy.
+# Don't add opencv-python as well: the two OpenCV packages conflict.
+mediapipe==1.2.2
