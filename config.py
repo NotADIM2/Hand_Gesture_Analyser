@@ -49,6 +49,9 @@ PEACE_MIN_SPREAD = 15.0
 # Stability: a gesture is STABLE once it wins this many of the last N frames.
 STABILITY_WINDOW = 10
 STABILITY_MIN_AGREEMENT = 7
+# MediaPipe sometimes loses a hand for a frame or two. Remember it this many frames
+# (~0.5 s at 30 FPS) so a brief dropout doesn't log the same gesture again.
+HAND_LOST_GRACE_FRAMES = 15
 
 # --- Interface (ui.py) -------------------------------------------------------
 WINDOW_NAME = "Hand Gesture Analyser"

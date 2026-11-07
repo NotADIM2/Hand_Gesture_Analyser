@@ -97,6 +97,7 @@ class GestureResult:
 class _HandTrack:
     labels: deque
     last_logged: str | None = None
+    frames_missing: int = 0
 
 
 class GestureAnalyzer:
@@ -105,21 +106,27 @@ class GestureAnalyzer:
         classifier: GestureClassifier | None = None,
         window: int = config.STABILITY_WINDOW,
         min_agreement: int = config.STABILITY_MIN_AGREEMENT,
+        grace_frames: int = config.HAND_LOST_GRACE_FRAMES,
     ):
         if not 1 <= min_agreement <= window:
             raise ValueError("min_agreement must be between 1 and window")
         self.classifier = classifier or RuleBasedClassifier()
         self.window = window
         self.min_agreement = min_agreement
+        self.grace_frames = grace_frames
         self._tracks: dict[str, _HandTrack] = {}
 
     def analyze(self, hands: list[HandFeatures]) -> list[GestureResult]:
         """Classify every hand in the current frame; call once per frame."""
         keys = _track_keys(hands)
         results = [self._update(key, features) for key, features in zip(keys, hands)]
-        # Forget hands that left the frame so they start fresh when they return.
+        # Forget hands that have been gone longer than the grace period, so they
+        # start fresh when they return.
         for key in set(self._tracks) - set(keys):
-            del self._tracks[key]
+            track = self._tracks[key]
+            track.frames_missing += 1
+            if track.frames_missing > self.grace_frames:
+                del self._tracks[key]
         return results
 
     def reset(self) -> None:
@@ -127,6 +134,7 @@ class GestureAnalyzer:
 
     def _update(self, key: str, features: HandFeatures) -> GestureResult:
         track = self._tracks.setdefault(key, _HandTrack(deque(maxlen=self.window)))
+        track.frames_missing = 0
         frame_gesture = self.classifier.classify(features)
         track.labels.append(frame_gesture)
 

@@ -124,11 +124,22 @@ def test_two_hands_tracked_separately():
 
 
 def test_hand_leaving_frame_resets_its_history():
-    analyzer = ga.GestureAnalyzer(window=5, min_agreement=3)
+    analyzer = ga.GestureAnalyzer(window=5, min_agreement=3, grace_frames=2)
     run(analyzer, 5)
-    analyzer.analyze([])
+    for _ in range(3):  # gone longer than the grace period
+        analyzer.analyze([])
     result = analyzer.analyze([right_hand()])[0]
     assert result.window == 1 and result.status == ga.UNCERTAIN
+
+
+def test_brief_dropout_does_not_log_again():
+    # Seen in a real run: a hand vanishing for a frame or two re-logged the same fist.
+    analyzer = ga.GestureAnalyzer(window=5, min_agreement=3, grace_frames=15)
+    logged = sum(r[0].newly_stable for r in run(analyzer, 5))
+    for _ in range(3):
+        analyzer.analyze([])
+    logged += sum(r[0].newly_stable for r in run(analyzer, 5))
+    assert logged == 1
 
 
 def test_same_label_twice_kept_apart():
