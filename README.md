@@ -1,5 +1,7 @@
 # Hand_Gesture_Analyser
 
+[![tests](https://github.com/NotADIM2/Hand_Gesture_Analyser/actions/workflows/tests.yml/badge.svg)](https://github.com/NotADIM2/Hand_Gesture_Analyser/actions/workflows/tests.yml)
+
 Team_Project. A real-time hand gesture analyser: it reads your webcam, finds your
 hands with MediaPipe, recognises 17 hand poses plus 8 moving and two-hand
 gestures (25 in total) with geometric rules, keeps a gesture history in SQLite, and
