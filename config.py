@@ -272,3 +272,21 @@ ALERT_BEEP_MS = 250                # length of each tone
 
 # --- Phrases and practice (phrases.py, sign_practice.py) ---------------------------
 PHRASE_PAUSE_SECONDS = 2.5         # a pause this long after a word finishes the phrase
+
+# --- Virtual buttons (buttons.py) --------------------------------------------------
+BUTTON_HOLD_SECONDS = 0.8          # hover a fingertip on a button this long to press it...
+BUTTON_QUIT_SECONDS = 2.0          # ...QUIT takes longer, so it can't happen by accident
+BUTTON_PINCH_RATIO = 0.35          # ...or pinch on it (thumb-index gap, palm lengths): presses at once
+BUTTON_PINCH_PADDING = 12          # pixels of extra room while pinching (the fingertip moves to the thumb)
+BUTTON_FLASH_SECONDS = 0.25        # a pressed button flashes white this long
+BUTTON_TOP = 0.11                  # button columns run between these heights (fraction of the frame),
+BUTTON_BOTTOM = 0.86               # ...clear of the FPS counter and the help lines
+BUTTON_MARGIN = 0.01               # gap between columns and from the right edge (fraction of the width)
+MODE_BAR_WIDTH = 0.1               # column widths (fraction of the frame width)
+PAINT_BAR_WIDTH = 0.08
+TALK_BOARD_WIDTH = 0.15
+PAINT_COLOURS = {                  # draw shapes: pen colours on the paint bar (BGR); the first is the default
+    "CYAN": DRAW_COLOUR, "RED": (60, 60, 240), "YELLOW": (0, 230, 255), "PINK": (200, 110, 255), "WHITE": (255, 255, 255),
+}
+PAINT_SIZES = (6, 10, 16, 3)       # SIZE cycles the pen thickness through these; the first is the default
+TALK_WORDS = ("YES", "NO", "HELP", "WATER", "THANK YOU", "STOP")   # sign words: the talk board

@@ -13,7 +13,9 @@ A pinch often loosens for a moment at a sharp corner, so a stroke only counts as
 finished once the pen has stayed up for DRAW_JOIN_SECONDS; pinching again near where
 it stopped carries on the same stroke. A one-frame jump of the pen across the picture
 is a tracking glitch and is skipped. Wave (with the pen up) clears the drawing; z
-undoes the last stroke or shape.
+undoes the last stroke or shape. The pen colour and size can be changed (the paint
+bar of virtual buttons, buttons.py); each stroke keeps the colour it was drawn in. With
+the default cyan pen a recognised shape turns green; other colours keep their colour.
 
 The drawing is kept as a list of strokes and shapes, so nothing is ever rubbed out by
 accident and undo is simple. Finished items are drawn once into a cached layer when
@@ -48,6 +50,8 @@ class Item:
     shape: Shape | None           # drawn instead of the points when recognised
     hand: str
     finished_at: float
+    colour: tuple = config.DRAW_COLOUR
+    thickness: int = config.DRAW_THICKNESS
 
     @property
     def open(self) -> bool:
@@ -64,6 +68,8 @@ class _Lifted:
 class AirCanvas:
     def __init__(self, shapes: bool = True):
         self.shapes = shapes                      # recognise shapes when the pen lifts
+        self.colour = config.DRAW_COLOUR          # pen colour and thickness for new strokes
+        self.thickness = config.DRAW_THICKNESS
         self.items: list[Item] = []
         self.last_stroke: str | None = None       # what the last stroke was, or why it isn't a shape
         self.pens: dict[str, tuple[np.ndarray, bool]] = {}   # hand key -> (pen position, down?) this frame
@@ -139,7 +145,7 @@ class AirCanvas:
             return None
         result = analyse(points) if self.shapes else None
         shape = result.shape if result else None
-        self.items.append(Item(points, shape, hand, now))
+        self.items.append(Item(points, shape, hand, now, self.colour, self.thickness))
         self._version += 1
         if result is None:
             return None
@@ -175,7 +181,8 @@ class AirCanvas:
             result = analyse(path)
             if result.shape is not None and result.shape.name != LINE:
                 del self.items[-k:]
-                self.items.append(Item(path, result.shape, group[-1].hand, group[-1].finished_at))
+                last = group[-1]
+                self.items.append(Item(path, result.shape, last.hand, last.finished_at, last.colour, last.thickness))
                 self._version += 1
                 self.last_stroke = f"{result.reason} ({k} strokes)"
                 return result.shape
@@ -186,27 +193,36 @@ class AirCanvas:
         if self.items:
             _, _, index, colours = self._finished_layer(frame.shape)
             frame.reshape(-1, 3)[index] = colours
-        _ink(frame, list(self._stroke.values()) + [w.points for w in self._lifted.values()])
+        _ink(frame, list(self._stroke.values()) + [w.points for w in self._lifted.values()],
+             self.colour, self.thickness)
         for pen, down in self.pens.values():
             centre = tuple(int(v) for v in pen)
             if down:
-                cv2.circle(frame, centre, config.DRAW_THICKNESS, config.DRAW_COLOUR, -1, cv2.LINE_AA)
+                cv2.circle(frame, centre, max(self.thickness, 4), self.colour, -1, cv2.LINE_AA)
             else:   # a ring where the pen would touch down
-                cv2.circle(frame, centre, config.DRAW_THICKNESS + 4, (255, 255, 255), 2, cv2.LINE_AA)
+                cv2.circle(frame, centre, max(self.thickness, 4) + 4, (255, 255, 255), 2, cv2.LINE_AA)
         return frame
 
     def _finished_layer(self, shape: tuple):
         """The finished strokes and shapes as (pixel indices, colours), redrawn only when they change."""
         if self._layer is None or self._layer[:2] != (self._version, shape):
             layer = np.zeros(shape, np.uint8)
-            _ink(layer, [item.points for item in self.items if item.shape is None])
-            for item in self.items:
-                if item.shape is not None:
-                    draw_shape(layer, item.shape)
+            for item in self.items:   # in drawing order, so later strokes go on top
+                if item.shape is None:
+                    _ink(layer, [item.points], item.colour, item.thickness)
+                else:
+                    colour = config.SHAPE_COLOUR if item.colour == config.DRAW_COLOUR else item.colour
+                    draw_shape(layer, item.shape, colour, item.thickness)
             flat = layer.reshape(-1, 3)
             index = np.flatnonzero(flat.any(axis=1))
             self._layer = (self._version, shape, index, flat[index])
         return self._layer
+
+    def next_size(self) -> int:
+        """Change the pen to the next size in PAINT_SIZES; returns the new thickness."""
+        sizes = config.PAINT_SIZES
+        self.thickness = sizes[(sizes.index(self.thickness) + 1) % len(sizes)] if self.thickness in sizes else sizes[0]
+        return self.thickness
 
     def undo(self) -> bool:
         """Remove the last stroke or shape; False if there was nothing to undo."""
@@ -235,11 +251,11 @@ class AirCanvas:
         return not self.items and not self._stroke and not self._lifted
 
 
-def _ink(image: np.ndarray, strokes) -> None:
-    """Draw strokes as they were drawn (cyan lines)."""
+def _ink(image: np.ndarray, strokes, colour=config.DRAW_COLOUR, thickness: int = config.DRAW_THICKNESS) -> None:
+    """Draw strokes as they were drawn."""
     lines = [np.asarray(s).astype(np.int32).reshape(-1, 1, 2) for s in strokes if len(s) > 1]
     if lines:
-        cv2.polylines(image, lines, False, config.DRAW_COLOUR, config.DRAW_THICKNESS, cv2.LINE_AA)
+        cv2.polylines(image, lines, False, colour, thickness, cv2.LINE_AA)
 
 
 def chain(strokes: list[np.ndarray]) -> np.ndarray | None:

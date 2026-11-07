@@ -16,6 +16,7 @@ machine-learning model.
 |---|---|
 | **One mode at a time** | Number keys 1–7 switch between poses, moving gestures, drawing shapes, sign letters, exercises, sign words and sign practice, so the screen only shows what you're doing |
 | **25 gestures** | 17 hand poses, 6 moving gestures (swipes, wave, circle), 2 two-hand gestures (clap, heart) |
+| **Virtual buttons** | On-screen buttons pressed in the air (hover or pinch): switch modes, pick pen colours and sizes, tap words to speak them; the whole app works without a keyboard |
 | **Teach new poses** | Press `t`, name a pose, show it for 2 seconds: it's recognised from then on, and committing its file shares it with everyone |
 | **Finger counting** | Fingers up on one or both hands, 0–10, in the poses mode |
 | **Two classifiers** | Geometric rules (default) or a trained k-NN model (`--classifier ml`), compared on real hands |
@@ -30,7 +31,7 @@ machine-learning model.
 | **History and reports** | Every gesture saved to SQLite; HTML session report with charts; accuracy report per gesture and per person |
 | **Honest feedback** | Shows how many of the last 10 frames agree, never a made-up confidence % |
 | **Speed benchmark** | `--benchmark` times every pipeline stage and saves a table of averages |
-| **Tested** | 370+ automated tests, no webcam needed, run on every push by GitHub Actions |
+| **Tested** | 400+ automated tests, no webcam needed, run on every push by GitHub Actions |
 
 ## Demo in 5 minutes
 
@@ -40,6 +41,8 @@ python app.py
 ```
 
 The top left of the window always says which mode you're in (`MODE 1: POSES`).
+Everything below can also be done without the keyboard: point at a button on the
+right and hold still (or pinch) to press it (see [Virtual buttons](#virtual-buttons)).
 
 1. **Poses** (key `1`, the default): show a fist, thumbs up, peace, rock, call me;
    the label and stability appear on screen, with the number of fingers up (try both
@@ -49,7 +52,8 @@ The top left of the window always says which mode you're in (`MODE 1: POSES`).
 3. **Draw shapes** (key `3`): pinch thumb and index, draw a circle in the air, open
    your fingers: it's recognised (`SHAPE: CIRCLE`) and redrawn as a clean green
    circle. Try a triangle, a rectangle, a straight line, and a square drawn one side
-   at a time. `z` undoes, a wave clears, `s` saves the picture.
+   at a time. `z` undoes, a wave clears, `s` saves the picture. Pick a colour and pen
+   size on the paint bar of buttons.
 4. **Sign letters** (key `4`): spell a word, e.g. **BUY** (four fingers, two
    fingers, call me), open palm to finish it and hear it spoken.
 5. **Exercises** (key `5`): follow the routine on screen (and spoken): open and
@@ -59,7 +63,8 @@ The top left of the window always says which mode you're in (`MODE 1: POSES`).
    thumbs-up on a flat hand and lift both (**HELP**). Each word is spoken and added
    to the sentence on screen. Sign **ME** then **HELP** and pause: it says *"I need
    help."* **HELP** (or **DANGER**) also raises the emergency alert: a siren and a
-   flashing red screen; press `x` to dismiss it.
+   flashing red screen; press `x` to dismiss it. Or point at a word on the talk
+   board (YES, NO, HELP, WATER, THANK YOU, STOP) to say it without signing.
 7. **Sign practice** (key `7`): the app asks for a sign (`SIGN: WAIT`) with a hint;
    sign it to score, `n` skips. Watch the score and streak.
 8. **Control**: back in mode 1, press `m`, show **FIST → PEACE → THUMBS UP** to
@@ -93,7 +98,8 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Result / UI | `ui.py` | Skeleton, result panel, history and feature panels, keys |
 | Teaching | `teach.py` | Poses taught live with `t`, checked before the normal classifier |
 | Benchmark | `benchmark.py` | Times each pipeline stage (`--benchmark`) |
-| Draw shapes | `air_draw.py` | Pinch to draw; strokes (one or several per shape) go to the shape recogniser; undo, wave to clear |
+| Draw shapes | `air_draw.py` | Pinch to draw; strokes (one or several per shape) go to the shape recogniser; colours, sizes, undo, wave to clear |
+| Virtual buttons | `buttons.py` | On-screen buttons pressed with a fingertip (hover or pinch): mode bar, paint bar, talk board |
 | Shape recogniser | `shape_recognizer.py` | Line, circle, triangle, square or rectangle from a drawn stroke |
 | Exercise coach | `exercise_coach.py` | Guided hand exercises: counts, times and measures repetitions |
 | Speech | `speech.py` | Speaks text with the system's offline voice, in the background |
@@ -170,6 +176,7 @@ the exercise results).
 | `s` | Save a picture of the window to `data/snapshots/` |
 | `t` | Teach a new pose (type a name, Enter; Esc cancels) |
 | `w` | Full screen on/off (Esc also leaves full screen) |
+| `b` | Show/hide the virtual buttons |
 | `x` | Dismiss the emergency alert |
 | `n` | Sign practice: skip to the next word |
 | `z` | Draw shapes: undo the last stroke or shape |
@@ -350,9 +357,14 @@ while it's up, a filled dot while it's drawing.
 | Do | To |
 |---|---|
 | Pinch and move | Draw |
-| `z` | Undo the last stroke or shape |
-| Wave (pen up) | Clear the drawing |
-| `s` | Save the picture |
+| `z` or the UNDO button | Undo the last stroke or shape |
+| Wave (pen up) or the CLEAR button | Clear the drawing |
+| `s` or the SAVE button | Save the picture |
+| A colour button | Draw in that colour (cyan, red, yellow, pink, white) |
+| The SIZE button | Next pen size (6, 10, 16, 3 pixels) |
+
+Each stroke keeps the colour and size it was drawn with. With the default cyan pen a
+recognised shape turns green; in other colours it keeps its colour.
 
 When the pen lifts (or your hand leaves the picture), the stroke is recognised
 (`shape_recognizer.py`). A recognised shape replaces the shaky stroke with a clean
@@ -519,9 +531,41 @@ can't call out can still get attention:
 - `ALERT: DANGER signed at 14:05:09` printed in the terminal, and `ALERT DANGER`
   saved in the history (so it shows in the session report).
 
-Press `x` to dismiss it early; signing again keeps it going. `--mute` silences the
+Tapping HELP on the talk board raises it too. Press `x` to dismiss it early; signing again keeps it going. `--mute` silences the
 siren but the red screen still shows. The words, time and tones are `ALERT_*` in
 `config.py`. It's a local alert on this computer; it doesn't contact anyone.
+
+## Virtual buttons
+
+Buttons drawn on the right of the picture, pressed with your index fingertip in the
+air, so the whole app can be used without touching the keyboard (on a big screen,
+from across the room, or for someone who can't use a keyboard).
+
+**Pressing.** Two ways, both always on:
+
+- **Hover**: hold your fingertip on a button; a green bar fills along its bottom and
+  it presses after 0.8 s. QUIT takes 2 s, so it can't happen by accident.
+- **Pinch**: point at the button and pinch thumb and index: it presses at once.
+
+A pressed button flashes white. It won't press again until your finger has left it,
+so holding still doesn't repeat. A hand on a button is left out of the mode: pointing
+at a button doesn't draw, sign or count as a gesture. `b` hides the buttons.
+
+| Buttons | Shown | Do |
+|---|---|---|
+| **Mode bar** | Always | `1 POSES` ... `7 PRACT` switch mode (the current one is outlined yellow), `FULL` full screen, `QUIT` |
+| **Paint bar** | Draw shapes | Five colours, `SIZE`, `UNDO`, `CLEAR`, `SAVE` |
+| **Talk board** | Sign words | `YES`, `NO`, `HELP`, `WATER`, `THANK YOU`, `STOP`: says the word |
+
+**Talk board.** A word tapped on the board counts just like a signed one: it's
+spoken, added to the sentence (sign ME, then tap HELP: *"I need help."*),
+and HELP raises the emergency alert. It's a small communication board (AAC) for
+someone who can point but not sign, or for words the camera finds hard. Taps are saved
+in the history as `TAP YES`, signs as `SIGN YES`.
+
+Mode buttons do exactly what the number keys do, so pressing the current mode's
+button goes back to poses. Hold times, sizes, colours and words are `BUTTON_*`,
+`PAINT_*` and `TALK_WORDS` in `config.py`.
 
 ## Hand exercise coach
 

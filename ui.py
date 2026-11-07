@@ -56,6 +56,7 @@ KEY_EXERCISE = ord("e")
 KEY_DISMISS = ord("x")
 KEY_SKIP = ord("n")
 KEY_UNDO = ord("z")
+KEY_BUTTONS = ord("b")
 KEY_ESC = 27
 
 POSES, MOTION, DRAW, SIGN, EXERCISE, WORDS, PRACTICE = (
@@ -70,7 +71,7 @@ SHOWS_POSES = (POSES, SIGN)   # modes that label hand poses
 
 HELP_LINES = (
     "1: poses  2: moving gestures  3: draw shapes  4: sign letters  5: exercises  6: sign words  7: practice",
-    "m: control  t: teach  h: history  f: features  c: clear history  s: save  w: full screen  q: quit",
+    "m: control  t: teach  h: history  f: features  b: buttons  c: clear history  s: save  w: full screen  q: quit",
 )
 
 
@@ -272,6 +273,7 @@ class Interface:
         self.window_name = window_name
         self.show_history = False
         self.show_features = False
+        self.show_buttons = True      # virtual buttons (buttons.py); b hides them
         self.fullscreen = False
         # A normal (resizable) window. Frames are still processed at the camera size;
         # show() scales the finished picture to whatever size the window is.
@@ -309,7 +311,10 @@ class Interface:
         sign_text: str | None = None,
         mode: str = POSES,
         prompt: str | None = None,
+        right_edge: int | None = None,
     ) -> np.ndarray:
+        """right_edge: where the right-hand panels end (left of the virtual buttons)."""
+        right_edge = frame.shape[1] if right_edge is None else right_edge
         # Only the current mode's output is drawn: pose labels in the pose modes,
         # trails and the move banner in the moving gestures mode.
         for hand, result in zip(hands, results):
@@ -335,7 +340,8 @@ class Interface:
         if prompt:
             draw_banner(frame, prompt, YELLOW, scale=1.3, lift=155)
         if self.show_history and history is not None:
-            draw_panel(frame, history_lines(history), (frame.shape[1], 50), scale=0.5)
+            # Drawn on a view of the frame left of the buttons, so it right-aligns against them.
+            draw_panel(frame[:, :right_edge], history_lines(history), (right_edge, 50), scale=0.5)
         if self.show_features and features:
             draw_panel(frame, feature_lines(features, heart), (10, frame.shape[0] - 200), scale=0.45)
         draw_panel(frame, [(line, GREY) for line in HELP_LINES], (10, frame.shape[0]), scale=0.45)
@@ -358,6 +364,8 @@ class Interface:
             self.show_history = not self.show_history
         elif key == KEY_FEATURES:
             self.show_features = not self.show_features
+        elif key == KEY_BUTTONS:
+            self.show_buttons = not self.show_buttons
 
     @property
     def closed(self) -> bool:
