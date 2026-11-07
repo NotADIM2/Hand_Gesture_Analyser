@@ -22,12 +22,13 @@ machine-learning model.
 | **Gesture control** | Run a PowerPoint slideshow or your music player, unlocked by a gesture password |
 | **Draw shapes** | Pinch to draw in the air; circles, triangles, squares, rectangles and lines are recognised and redrawn cleanly |
 | **Sign letters, spoken** | Spell words with ASL fingerspelling letters; each finished word is spoken aloud, offline |
+| **Emergency alert** | Signing DANGER or HELP sounds a siren and flashes the screen red, with the time; logged in the history |
 | **Sign words, spoken** | 23 basic sign-language words (HELLO, THANK YOU, YES, NO, HELP, STOP, ...) from hand shape and movement, built into a sentence and spoken |
 | **Hand exercise coach** | Guided routine (open/close, thumb touches, count to five) with repetition counting, timing, range of motion and progress in the report |
 | **History and reports** | Every gesture saved to SQLite; HTML session report with charts; accuracy report per gesture and per person |
 | **Honest feedback** | Shows how many of the last 10 frames agree, never a made-up confidence % |
 | **Speed benchmark** | `--benchmark` times every pipeline stage and saves a table of averages |
-| **Tested** | 340+ automated tests, no webcam needed, run on every push by GitHub Actions |
+| **Tested** | 350+ automated tests, no webcam needed, run on every push by GitHub Actions |
 
 ## Demo in 5 minutes
 
@@ -54,7 +55,8 @@ The top left of the window always says which mode you're in (`MODE 1: POSES`).
 6. **Sign words** (key `6`): with one hand, point at the camera (**YOU**), make a
    flat hand and move it straight down (**THANK YOU**); with both hands, rest a
    thumbs-up on a flat hand and lift both (**HELP**). Each word is spoken and added
-   to the sentence on screen.
+   to the sentence on screen. **HELP** (or **DANGER**) also raises the emergency
+   alert: a siren and a flashing red screen; press `x` to dismiss it.
 7. **Control**: back in mode 1, press `m`, show **FIST → PEACE → THUMBS UP** to
    unlock, click a PowerPoint window and swipe through slides.
 8. **Teach**: show your pinky alone (UNKNOWN), press `t`, type `PINKY PROMISE`,
@@ -91,6 +93,7 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Exercise coach | `exercise_coach.py` | Guided hand exercises: counts, times and measures repetitions |
 | Speech | `speech.py` | Speaks text with the system's offline voice, in the background |
 | Sign letters | `sign_language.py` | Poses → ASL fingerspelling letters, spelled into words |
+| Emergency alert | `alarm.py` | Siren and red screen when DANGER or HELP is signed |
 | Sign words | `sign_words.py` | Hand shape + movement over the last second → 23 basic sign-language words |
 | ML classifier | `ml_classifier.py` | k-nearest-neighbours alternative to the rules (`--classifier ml`) |
 | Session report | `scripts/session_report.py` | History database → HTML page with charts |
@@ -127,7 +130,7 @@ python app.py --classifier ml           # recognise poses with the trained model
 python app.py --fullscreen              # start full screen (w toggles)
 python app.py --benchmark               # time every pipeline stage
 python app.py --person Alex             # your name in poses you teach (default: git user.name)
-python app.py --mute                    # no speech (sign letters, exercise coach)
+python app.py --mute                    # no speech or alarm sound (sign letters, sign words, exercise coach)
 ```
 
 The app works in **one mode at a time**, so pose labels, palm trails and drawings
@@ -158,6 +161,7 @@ results in 5, signed words in 6 (as `SIGN HELLO`, ...).
 | `s` | Save a picture of the window to `data/snapshots/` |
 | `t` | Teach a new pose (type a name, Enter; Esc cancels) |
 | `w` | Full screen on/off (Esc also leaves full screen) |
+| `x` | Dismiss the emergency alert |
 
 History is saved in `data/gesture_history.db`, one row each time a new gesture
 becomes stable (not once per frame).
@@ -431,6 +435,20 @@ A word is said once even while the sign is held, and there is a short pause (1 s
 before the next one. Each sign is tested as a short synthetic video, with landmark
 jitter, the left hand and faster or slower signing, in `tests/test_sign_words.py`.
 The thresholds are `SIGN_*` in `config.py`.
+
+### Emergency alert
+
+Signing **DANGER** or **HELP** in the sign words mode raises an alert, so someone who
+can't call out can still get attention:
+
+- a siren (two alternating tones from the computer's own speaker) for 6 seconds,
+- the whole screen flashing red with `ALERT: DANGER` and the time it was signed,
+- `ALERT: DANGER signed at 14:05:09` printed in the terminal, and `ALERT DANGER`
+  saved in the history (so it shows in the session report).
+
+Press `x` to dismiss it early; signing again keeps it going. `--mute` silences the
+siren but the red screen still shows. The words, time and tones are `ALERT_*` in
+`config.py`. It's a local alert on this computer; it doesn't contact anyone.
 
 ## Hand exercise coach
 

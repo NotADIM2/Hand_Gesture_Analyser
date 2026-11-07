@@ -24,6 +24,7 @@ import cv2
 
 import config
 from air_draw import AirCanvas
+from alarm import Alarm
 from benchmark import StageTimer
 from camera import Camera, CameraError, to_rgb
 from controller import GestureController, GesturePassword
@@ -39,8 +40,8 @@ from sign_words import SignWords
 from speech import Speaker
 from teach import Teacher, TaughtGestures, WithTaughtGestures
 from ui import (
-    DRAW, EXERCISE, KEY_CLEAR, KEY_CONTROL, KEY_ESC, KEY_QUIT, KEY_SAVE, KEY_TEACH, MODE_KEYS, MODE_TITLES,
-    MOTION, POSES, SHOWS_POSES, SIGN, WORDS, FPSCounter, HistoryView, Interface,
+    DRAW, EXERCISE, KEY_CLEAR, KEY_CONTROL, KEY_DISMISS, KEY_ESC, KEY_QUIT, KEY_SAVE, KEY_TEACH, MODE_KEYS, MODE_TITLES,
+    MOTION, POSES, SHOWS_POSES, SIGN, WORDS, FPSCounter, HistoryView, Interface, draw_alert,
 )
 
 CONTROL_MODES = (POSES, MOTION)   # modes in which gesture control may press keys
@@ -74,6 +75,7 @@ def status_lines(controller: GestureController, password: GesturePassword, mode:
     if mode == WORDS:
         lines.append("Sign a word: HELLO, THANK YOU, YES, NO, HELP, STOP ... (list in the README)")
         lines.append("One-hand signs with only that hand in view; each word is spoken")
+        lines.append(f"{' or '.join(config.ALERT_WORDS)} raises an emergency alert (x dismisses)")
     return lines
 
 
@@ -106,7 +108,7 @@ def run(
 ) -> int:
     session_id = uuid.uuid4().hex[:8]
     camera = Camera(index=camera_index)
-    detector = db = ui = None
+    detector = db = ui = alarm = None
     try:
         camera.open()
         detector = HandDetector()
@@ -126,6 +128,7 @@ def run(
         signer = SignWords()
         coach = ExerciseCoach()
         speaker = Speaker(enabled=speak)
+        alarm = Alarm(sound=speak)
         mode = POSES
         last_action, last_action_at = None, 0.0
         ui = Interface(fullscreen=fullscreen)
@@ -189,6 +192,11 @@ def run(
                 if signed:
                     last_action, last_action_at = signed, now
                     speaker.say(signed.lower())
+                if alarm.is_alert(signed):
+                    alarm.raise_alert(signed, now)
+                    print(f"ALERT: {signed} signed at {alarm.raised_at:%H:%M:%S}")
+                    if db is not None:
+                        db.insert(f"ALERT {signed}", hands[0].handedness if len(hands) == 1 else "Both", session_id)
             elif mode == EXERCISE:
                 for message in coach.update(hands, features, now):
                     last_action, last_action_at = message, now
@@ -244,6 +252,9 @@ def run(
                 sign_text=speller.text if mode == SIGN else signer.text if mode == WORDS else None,
                 mode=mode,
             )
+            alarm.update(now)
+            if alarm.active(now):
+                draw_alert(frame, alarm.word, alarm.flash_on(now), f"{alarm.raised_at:%H:%M:%S}")
             timer.lap("drawing")
             key = ui.show(frame)
             timer.lap("display")
@@ -285,6 +296,8 @@ def run(
                     last_action, last_action_at = MODE_TITLES[mode], now
                     if mode == EXERCISE:
                         speaker.say(coach.start())
+            if key == KEY_DISMISS:
+                alarm.dismiss()
             if key == KEY_SAVE:
                 print(f"Saved {save_snapshot(frame)}")
             if key == KEY_TEACH and not teacher.active:
@@ -302,6 +315,8 @@ def run(
         return 0
     finally:
         camera.release()
+        if alarm is not None:
+            alarm.dismiss()
         if detector is not None:
             detector.close()
         if db is not None:
@@ -332,7 +347,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--benchmark", action="store_true", help="time each pipeline stage; summary saved on exit")
     parser.add_argument("--fullscreen", action="store_true", help="start full screen (w toggles it in the window)")
     parser.add_argument("--person", help="your name, saved in poses you teach (default: git user.name)")
-    parser.add_argument("--mute", action="store_true", help="don't speak (sign letters, exercise coach)")
+    parser.add_argument("--mute", action="store_true",
+                        help="no speech or alarm sound (sign letters, sign words, exercise coach)")
     args = parser.parse_args(argv)
     return run(
         camera_index=args.camera, db_path=None if args.no_history else args.db,

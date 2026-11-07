@@ -37,6 +37,7 @@ RED = (60, 60, 230)
 SKELETON = (255, 200, 0)
 TRAIL = (255, 0, 255)  # magenta
 JOINT = (0, 0, 255)
+ALERT_RED = (0, 0, 255)
 
 STATUS_COLOURS = {STABLE: GREEN, UNCERTAIN: YELLOW}
 
@@ -51,6 +52,7 @@ KEY_SAVE = ord("s")
 KEY_TEACH = ord("t")
 KEY_FULLSCREEN = ord("w")
 KEY_EXERCISE = ord("e")
+KEY_DISMISS = ord("x")
 KEY_ESC = 27
 
 POSES, MOTION, DRAW, SIGN, EXERCISE, WORDS = "poses", "motion", "draw", "sign", "exercise", "words"
@@ -222,6 +224,26 @@ def feature_lines(features: list[HandFeatures], heart: HeartMeasurements | None 
     if heart is not None:
         lines += heart_lines(heart)
     return lines
+
+
+def draw_alert(frame: np.ndarray, word: str, flash_on: bool, when: str = "") -> None:
+    """Emergency alert over the whole picture: a flashing red tint, a red border and the word."""
+    h, w = frame.shape[:2]
+    if flash_on:
+        red = np.zeros_like(frame)
+        red[:] = ALERT_RED
+        frame[:] = cv2.addWeighted(frame, 0.4, red, 0.6, 0)
+    cv2.rectangle(frame, (0, 0), (w - 1, h - 1), ALERT_RED, 18)
+    # Above the middle, so it stays clear of the sentence and action banners at the bottom.
+    for text, scale, y in ((f"ALERT: {word}", 1.8, h // 2 - 45),
+                           (f"signed at {when}" if when else "", 0.8, h // 2 - 2),
+                           ("press x to dismiss", 0.7, h // 2 + 30)):
+        if not text:
+            continue
+        (tw, _), _ = cv2.getTextSize(text, FONT, scale, 3)
+        origin = (max(0, (w - tw) // 2), y)
+        cv2.putText(frame, text, origin, FONT, scale, (0, 0, 0), 8, cv2.LINE_AA)
+        cv2.putText(frame, text, origin, FONT, scale, WHITE, 3, cv2.LINE_AA)
 
 
 def fit_to_window(frame: np.ndarray, size: tuple[int, int] | None) -> np.ndarray:

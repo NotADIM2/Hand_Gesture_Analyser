@@ -256,3 +256,10 @@ SIGN_NEAR = 1.6                  # two hands this close (palm lengths) are touch
 SIGN_POINT_DEPTH = 0.6           # ME / YOU: the index points this much away from / towards the camera
 SIGN_TOGETHER = 0.8              # MORE: the hands come together and apart this much (palm lengths)
 SIGN_MAX_WORDS = 8               # words kept in the sentence on screen
+
+# --- Emergency alert (alarm.py) ----------------------------------------------------
+ALERT_WORDS = ("DANGER", "HELP")   # signed words that raise the alert
+ALERT_SECONDS = 6.0                # how long the red screen and siren last (x dismisses)
+ALERT_FLASH_HZ = 2.0               # red screen flashes this many times a second
+ALERT_TONES = (880, 1320)          # siren: two alternating tones (Hz)
+ALERT_BEEP_MS = 250                # length of each tone
