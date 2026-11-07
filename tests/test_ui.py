@@ -89,3 +89,12 @@ def test_heart_readout_in_feature_panel():
     text, colour = lines[-1]
     assert "index tips 0.90 NO" in text and "thumb tips 0.20 ok" in text
     assert colour == ui.ORANGE
+
+
+def test_control_mode_label_and_action_flash():
+    frame = np.zeros((480, 640, 3), np.uint8)
+    interface = ui.Interface.__new__(ui.Interface)
+    interface.show_history = True
+    interface.show_features = False
+    interface.render(frame, [], [], [], 30.0, ui.HistoryView(), control="presentation", action="NEXT SLIDE")
+    assert frame.any()

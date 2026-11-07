@@ -90,12 +90,42 @@ HEART_TOUCH_DISTANCE = 0.6
 HEART_MIN_WRIST_GAP = 0.8
 HEART_HOLD_FRAMES = 5
 
+# --- Gesture control (controller.py) ------------------------------------------
+# Each profile maps a gesture to (label shown on screen, key to press[, True to keep
+# pressing while the pose is held]). Keys are pynput Key names (right, left, f5, esc,
+# media_play_pause, media_volume_up, ...) or a single character. Press m in the app
+# to switch between off and these profiles, in this order.
+# Open Palm is deliberately unused: it's how a hand looks just before a swipe.
+CONTROL_PROFILES = {
+    "presentation": {
+        "SWIPE LEFT": ("NEXT SLIDE", "right"),
+        "SWIPE RIGHT": ("PREVIOUS SLIDE", "left"),
+        "THUMBS UP": ("START SLIDESHOW", "f5"),
+        "THUMBS DOWN": ("END SLIDESHOW", "esc"),
+        "FIST": ("BLACK SCREEN", "b"),
+    },
+    "media": {
+        "SWIPE LEFT": ("NEXT TRACK", "media_next"),
+        "SWIPE RIGHT": ("PREVIOUS TRACK", "media_previous"),
+        "OK SIGN": ("PLAY / PAUSE", "media_play_pause"),
+        "THUMBS UP": ("VOLUME UP", "media_volume_up", True),
+        "THUMBS DOWN": ("VOLUME DOWN", "media_volume_down", True),
+        "FIST": ("MUTE", "media_volume_mute"),
+    },
+}
+# Minimum time between two actions, so one gesture can't press a key twice.
+CONTROL_COOLDOWN_SECONDS = 0.5
+# How often a held pose repeats an action marked to repeat (e.g. volume).
+CONTROL_REPEAT_SECONDS = 0.4
+
 # --- Interface (ui.py) -------------------------------------------------------
 WINDOW_NAME = "Hand Gesture Analyser"
 HISTORY_REFRESH_SECONDS = 0.5
 HISTORY_RECENT_ROWS = 5
 # How long a moving or two-hand gesture stays on screen after it happens.
 MOTION_DISPLAY_SECONDS = 2.5
+# How long the last control action (e.g. "NEXT SLIDE") stays on screen.
+CONTROL_DISPLAY_SECONDS = 1.5
 
 # The 21 MediaPipe hand landmarks joined into a skeleton (landmark index pairs).
 HAND_CONNECTIONS = (

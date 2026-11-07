@@ -1,8 +1,8 @@
 """Display and user interaction (architecture step: RESULT / UI).
 
 Draws onto OpenCV frames: hand skeletons, palm trails, the result panel, a banner for
-moving and two-hand gestures, an optional gesture history panel and an optional
-feature panel for tuning thresholds. This module only
+moving and two-hand gestures, the control mode and its last action, an optional
+gesture history panel and an optional feature panel for tuning thresholds. This module only
 draws what it is given; it never calls the detector or the database itself.
 """
 import time
@@ -34,6 +34,7 @@ KEY_QUIT = (ord("q"), 27)  # q or Esc
 KEY_HISTORY = ord("h")
 KEY_FEATURES = ord("f")
 KEY_CLEAR = ord("c")
+KEY_CONTROL = ord("m")
 
 
 @dataclass
@@ -97,10 +98,10 @@ def move_text(move: MotionEvent) -> str:
     return f"{move.gesture} ({move.hand.upper()} HAND{'S' if move.hand == 'Both' else ''})"
 
 
-def draw_banner(frame: np.ndarray, text: str, colour=GREEN, scale: float = 1.1) -> None:
-    """Large outlined text, centred just above the help line."""
+def draw_banner(frame: np.ndarray, text: str, colour=GREEN, scale: float = 1.1, lift: int = 45) -> None:
+    """Large outlined text, centred `lift` pixels above the bottom of the frame."""
     (w, _), _ = cv2.getTextSize(text, FONT, scale, 2)
-    origin = (max(0, (frame.shape[1] - w) // 2), frame.shape[0] - 45)
+    origin = (max(0, (frame.shape[1] - w) // 2), frame.shape[0] - lift)
     cv2.putText(frame, text, origin, FONT, scale, (0, 0, 0), 5, cv2.LINE_AA)
     cv2.putText(frame, text, origin, FONT, scale, colour, 2, cv2.LINE_AA)
 
@@ -193,6 +194,8 @@ class Interface:
         trails: list[np.ndarray] = (),
         last_move: MotionEvent | None = None,
         heart: HeartMeasurements | None = None,
+        control: str | None = None,
+        action: str | None = None,
     ) -> np.ndarray:
         for hand, result in zip(hands, results):
             colour = STATUS_COLOURS.get(result.status, ORANGE)
@@ -202,13 +205,17 @@ class Interface:
 
         draw_panel(frame, result_lines(len(hands), results, last_move), (10, 10), min_width=260)
         draw_panel(frame, [(f"FPS: {fps:.0f}", GREEN)], (frame.shape[1], 10))
+        if control:
+            draw_panel(frame, [(f"CONTROL: {control.upper()}", ORANGE)], (frame.shape[1], 50))
         if moves:
             draw_banner(frame, move_text(moves[-1]))
+        if action:
+            draw_banner(frame, f"> {action}", ORANGE, lift=90)
         if self.show_history and history is not None:
-            draw_panel(frame, history_lines(history), (frame.shape[1], 50), scale=0.5)
+            draw_panel(frame, history_lines(history), (frame.shape[1], 90 if control else 50), scale=0.5)
         if self.show_features and features:
             draw_panel(frame, feature_lines(features, heart), (10, frame.shape[0] - 180), scale=0.45)
-        help_text = "q: quit   h: history   f: features   c: clear history"
+        help_text = "q: quit   h: history   f: features   c: clear history   m: control mode"
         draw_panel(frame, [(help_text, GREY)], (10, frame.shape[0]), scale=0.45)
         return frame
 

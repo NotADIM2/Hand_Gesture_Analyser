@@ -2,14 +2,16 @@
 
 Team_Project. A real-time hand gesture analyser: it reads your webcam, finds your
 hands with MediaPipe, recognises 17 hand poses plus 8 moving and two-hand
-gestures (25 in total) with geometric rules, and keeps a gesture history in SQLite.
+gestures (25 in total) with geometric rules, keeps a gesture history in SQLite, and
+can control PowerPoint or your music with gestures.
 
 ## Architecture
 
 ```
 USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
      → FEATURE EXTRACTION → GESTURE ANALYZER ─┐
-                          → MOTION ANALYZER ──┴→ RESULT / UI + GESTURE HISTORY (SQLite)
+                          → MOTION ANALYZER ──┴→ CONTROLLER (optional key presses)
+                                               → RESULT / UI + GESTURE HISTORY (SQLite)
 ```
 
 | Step | Module | Does |
@@ -20,6 +22,7 @@ USER → WEBCAM → IMAGE PROCESSING (OpenCV) → HAND DETECTION (MediaPipe)
 | Feature extraction | `feature_extractor.py` | Landmarks → extended fingers, joint angles, distances, directions |
 | Gesture analyzer | `gesture_analyzer.py` | Features → gesture (rule-based), smoothed over recent frames |
 | Motion analyzer | `motion_analyzer.py` | Palm paths over time → swipes, wave, circle; both hands → clap, heart |
+| Controller | `controller.py` | Gestures → key presses, using a profile from `config.py`; off by default |
 | Gesture history | `database.py` | SQLite, written from a background thread |
 | Result / UI | `ui.py` | Skeleton, result panel, history and feature panels, keys |
 | Entry point | `app.py` | Connects the modules in pipeline order |
@@ -45,6 +48,7 @@ python scripts/download_model.py
 python app.py                 # default webcam
 python app.py --camera 1      # another webcam
 python app.py --no-history    # don't save to the database
+python app.py --control presentation   # start with gesture control on (or: media)
 ```
 
 | Key | Action |
@@ -53,6 +57,7 @@ python app.py --no-history    # don't save to the database
 | `h` | Show/hide gesture history |
 | `f` | Show/hide the feature panel (for tuning) |
 | `c` | Clear all saved history |
+| `m` | Gesture control: off → presentation → media → off |
 
 History is saved in `data/gesture_history.db`, one row each time a new gesture
 becomes stable (not once per frame).
@@ -104,13 +109,47 @@ how many of the last 10 frames agreed on the gesture:
 - **UNCERTAIN**: recent frames disagree.
 - **UNRECOGNISED**: a hand is visible but matches no gesture.
 
+## Gesture control
+
+Control mode turns gestures into key presses. It is **off** until you press `m` (or
+start with `--control`), and the window shows `CONTROL: PRESENTATION` / `MEDIA` while
+it is on, plus a flash such as `> NEXT SLIDE` every time it presses a key.
+
+| Gesture | Presentation | Media |
+|---|---|---|
+| SWIPE LEFT | Next slide (→) | Next track |
+| SWIPE RIGHT | Previous slide (←) | Previous track |
+| THUMBS UP | Start slideshow (F5) | Volume up (repeats while held) |
+| THUMBS DOWN | End slideshow (Esc) | Volume down (repeats while held) |
+| FIST | Black screen (B) | Mute |
+| OK SIGN | — | Play / pause |
+
+Open Palm is deliberately not used: it's how your hand looks just before a swipe.
+
+**Controlling a presentation:**
+
+1. Open your PowerPoint file.
+2. Run `python app.py --control presentation`.
+3. **Click on the PowerPoint window.** Key presses go to whichever window is in
+   front; the gesture window keeps watching in the background.
+4. Thumbs up to start the slideshow, swipe left/right to change slides, thumbs down
+   to finish.
+
+To switch control off or change profile, click the gesture window and press `m`.
+
+Profiles are in `CONTROL_PROFILES` in `config.py`: each gesture maps to a label, a key
+(a [pynput key name](https://pynput.readthedocs.io/en/latest/keyboard.html#pynput.keyboard.Key)
+such as `right` or `media_play_pause`, or a single character), and optionally `True`
+to repeat while held. Add your own profile there and it appears in the `m` cycle.
+
 ## Testing
 
 ```powershell
 python -m pytest
 ```
 
-The tests don't need a webcam. They use synthetic hands plus real landmarks taken
+The tests don't need a webcam, and the controller tests use a fake keyboard, so
+running them never presses real keys. They use synthetic hands plus real landmarks taken
 from MediaPipe's public sample photos (`tests/fixtures/sample_hands.json`).
 
 Each module can also be checked on its own with the live camera:
