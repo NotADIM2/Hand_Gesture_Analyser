@@ -10,6 +10,39 @@ can also draw in the air, spell words with sign-language letters, and measure it
 own accuracy on your team's recorded hands, comparing the rules with a trained
 machine-learning model.
 
+## Features at a glance
+
+| | |
+|---|---|
+| **25 gestures** | 17 hand poses, 6 moving gestures (swipes, wave, circle), 2 two-hand gestures (clap, heart) |
+| **Two classifiers** | Geometric rules (default) or a trained k-NN model (`--classifier ml`), compared on real hands |
+| **Gesture control** | Run a PowerPoint slideshow or your music player, unlocked by a gesture password |
+| **Air drawing** | Pinch to draw on the video, fist to clear, `s` to save the picture |
+| **Sign letters** | Spell words with 9 ASL fingerspelling letters |
+| **History and reports** | Every gesture saved to SQLite; HTML session report with charts; accuracy report per gesture and per person |
+| **Honest feedback** | Shows how many of the last 10 frames agree, never a made-up confidence % |
+| **Tested** | 200+ automated tests, no webcam needed, run on every push by GitHub Actions |
+
+## Demo in 5 minutes
+
+```powershell
+.venv\Scripts\activate
+python app.py
+```
+
+1. **Poses**: show a fist, thumbs up, peace, rock, call me; the label and stability
+   appear on screen. Press `f` to see the finger measurements behind each decision.
+2. **Moving gestures**: swipe, wave, draw a circle; follow the magenta trail and the
+   banner. Two hands: make a heart.
+3. **Air drawing**: press `d`, pinch and draw, fist to clear, `s` to save.
+4. **Sign letters**: press `a`, spell a word, e.g. **BUY** (four fingers, two fingers, call me).
+5. **Control**: press `m`, show **FIST → PEACE → THUMBS UP** to unlock, click a
+   PowerPoint window and swipe through slides.
+6. **Results**: quit, then `python scripts/session_report.py` and open
+   `reports/session_report.html`; `python scripts/evaluate.py` for accuracy, rules vs ML.
+
+![Session report: most used gestures, hands used and gestures per session](docs/session_report.png)
+
 ## Architecture
 
 ```
@@ -51,6 +84,10 @@ py -3.12 -m venv .venv
 pip install -r requirements-dev.txt
 python scripts/download_model.py
 ```
+
+On **Mac/Linux** use `python3.12 -m venv .venv` and `source .venv/bin/activate`.
+If Windows says *running scripts is disabled* when activating, run
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once and try again.
 
 ## Run
 
@@ -324,3 +361,11 @@ live, then adjust:
   harmless and can be ignored.
 - **Old tutorials use `mp.solutions.hands`**: that module was removed in current
   MediaPipe. This project uses the Tasks API (`mediapipe.tasks.python.vision`).
+- **Control mode presses nothing**: show the password first (the status says
+  `LOCKED 0/3` until you do), then click the window you want to control: keys go to
+  the window in front.
+- **`Trained model not found`** with `--classifier ml`: run
+  `python scripts/train_classifier.py`.
+- **A gesture is missed or confused**: press `f` to see the live values, compare them
+  with the thresholds in `config.py` (see [Tuning](#tuning)), and record samples to
+  measure the change with `python scripts/evaluate.py`.
