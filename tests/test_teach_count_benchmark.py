@@ -1,4 +1,6 @@
 """Teaching new poses, finger counting and the speed benchmark."""
+import json
+
 import numpy as np
 import pytest
 
@@ -6,7 +8,7 @@ import gesture_analyzer as ga
 import ui
 from benchmark import StageTimer
 from feature_extractor import extract_features
-from ml_classifier import feature_vector
+from hand_detector import DetectedHand
 from synthetic_hand import ALL_FINGERS, gesture_hand, make_hand, rotate_3d
 from teach import Teacher, TaughtGestures, WithTaughtGestures
 
@@ -29,10 +31,18 @@ def wobble(pts, tilt=10.0, noise=0.01):
     return pts + rng.normal(0.0, noise, pts.shape)
 
 
-def taught_demo(path=None):
-    taught = TaughtGestures(path=path)
+def example(pts):
+    return {"handedness": "Right", "world_landmarks": pts.tolist(), "image_points": pts.tolist()}
+
+
+def detected(pts):
+    return DetectedHand("Right", 0.98, pts, pts, pts)
+
+
+def taught_demo(folder=None):
+    taught = TaughtGestures(folder=folder)
     for name, build in DEMO_POSES.items():
-        taught.add(name, [feature_vector(features(wobble(build()))) for _ in range(30)])
+        taught.add(name, [example(wobble(build())) for _ in range(30)], author="tester")
     return taught
 
 
@@ -58,18 +68,29 @@ def test_rules_said_unknown_before_teaching():
         assert rules.classify(features(build())) == ga.UNKNOWN
 
 
-def test_saved_and_loaded(tmp_path):
-    path = tmp_path / "taught.npz"
-    taught_demo(path)
-    again = TaughtGestures(path=path)
+def test_one_file_per_pose_and_loaded_again(tmp_path):
+    taught_demo(tmp_path)
+    assert sorted(p.name for p in tmp_path.glob("*.json")) == [
+        "german_three.json", "middle_three.json", "pinky_promise.json"]
+    data = json.loads((tmp_path / "pinky_promise.json").read_text(encoding="utf-8"))
+    assert data["name"] == "PINKY PROMISE" and data["taught_by"] == ["tester"]
+    assert len(data["examples"]) == 30 and np.array(data["examples"][0]["world_landmarks"]).shape == (21, 3)
+    again = TaughtGestures(folder=tmp_path)   # e.g. a teammate after git pull
     assert again.names == sorted(DEMO_POSES)
     assert again.match(features(DEMO_POSES["PINKY PROMISE"]())) == "PINKY PROMISE"
-    again.forget()
-    assert not path.exists() and TaughtGestures(path=path).names == []
 
 
-def test_nothing_taught_matches_nothing():
-    assert TaughtGestures(path=None).match(features(make_hand())) is None
+def test_teaching_again_adds_examples_and_author(tmp_path):
+    taught = TaughtGestures(folder=tmp_path)
+    taught.add("PINKY PROMISE", [example(wobble(make_hand(("pinky",)))) for _ in range(5)], author="alex")
+    taught.add("PINKY PROMISE", [example(wobble(make_hand(("pinky",)))) for _ in range(5)], author="sam")
+    data = json.loads((tmp_path / "pinky_promise.json").read_text(encoding="utf-8"))
+    assert data["taught_by"] == ["alex", "sam"] and len(data["examples"]) == 10
+    assert TaughtGestures(folder=tmp_path).taught_by["PINKY PROMISE"] == ["alex", "sam"]
+
+
+def test_nothing_taught_matches_nothing(tmp_path):
+    assert TaughtGestures(folder=tmp_path / "empty").match(features(make_hand())) is None
 
 
 # --- The teaching flow (t key) ---------------------------------------------------------
@@ -79,9 +100,9 @@ def type_name(teacher, text, now=0.0):
         teacher.handle_key(ord(ch), now)
 
 
-def test_teach_flow_learns_a_pose():
-    taught = TaughtGestures(path=None)
-    teacher = Teacher(taught, examples=10, countdown=3.0)
+def test_teach_flow_learns_and_saves_a_pose(tmp_path):
+    taught = TaughtGestures(folder=tmp_path)
+    teacher = Teacher(taught, author="alex", examples=10, countdown=3.0)
     teacher.start()
     assert teacher.naming
     type_name(teacher, "pinky promisx")
@@ -91,17 +112,19 @@ def test_teach_flow_learns_a_pose():
     assert teacher.handle_key(13, 0.0) is None  # Enter: countdown starts
     assert "get ready" in teacher.status_line(1.0)
 
-    pose = features(DEMO_POSES["PINKY PROMISE"]())
-    assert teacher.update([pose], 1.0) is None and not taught.names   # still counting down
-    assert teacher.update([pose, pose], 3.5) is None                  # two hands: not recorded
+    hand = detected(DEMO_POSES["PINKY PROMISE"]())
+    assert teacher.update([hand], 1.0) is None and not taught.names   # still counting down
+    assert teacher.update([hand, hand], 3.5) is None                  # two hands: not recorded
     assert "recording 0/10" in teacher.status_line(3.5)
-    messages = [teacher.update([pose], 3.5 + i / 30) for i in range(1, 25)]
+    messages = [teacher.update([hand], 3.5 + i / 30) for i in range(1, 25)]
     assert "LEARNED PINKY PROMISE" in messages
     assert taught.names == ["PINKY PROMISE"] and not teacher.active
+    assert teacher.saved_to == tmp_path / "pinky_promise.json"
+    assert json.loads(teacher.saved_to.read_text(encoding="utf-8"))["taught_by"] == ["alex"]
 
 
 def test_teach_rejects_built_in_names_and_empty_names():
-    teacher = Teacher(TaughtGestures(path=None))
+    teacher = Teacher(TaughtGestures(folder=None))
     teacher.start()
     assert teacher.handle_key(13, 0.0) is None and teacher.naming      # empty: ignored
     type_name(teacher, "fist")
@@ -109,7 +132,7 @@ def test_teach_rejects_built_in_names_and_empty_names():
 
 
 def test_escape_cancels_and_keys_are_letters_while_naming():
-    teacher = Teacher(TaughtGestures(path=None))
+    teacher = Teacher(TaughtGestures(folder=None))
     teacher.start()
     type_name(teacher, "q h")             # would be quit / history outside naming
     assert teacher.name == "Q H"

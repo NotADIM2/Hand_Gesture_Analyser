@@ -15,7 +15,7 @@ machine-learning model.
 | | |
 |---|---|
 | **25 gestures** | 17 hand poses, 6 moving gestures (swipes, wave, circle), 2 two-hand gestures (clap, heart) |
-| **Teach new poses** | Press `t`, name a pose, show it for 2 seconds: it's recognised from then on |
+| **Teach new poses** | Press `t`, name a pose, show it for 2 seconds: it's recognised from then on, and committing its file shares it with everyone |
 | **Finger counting** | Fingers up on one or both hands, 0–10, always on screen |
 | **Two classifiers** | Geometric rules (default) or a trained k-NN model (`--classifier ml`), compared on real hands |
 | **Gesture control** | Run a PowerPoint slideshow or your music player, unlocked by a gesture password |
@@ -107,7 +107,7 @@ python app.py --control presentation   # start with gesture control on (or: medi
 python app.py --classifier ml           # recognise poses with the trained model instead of rules
 python app.py --fullscreen              # start full screen (w toggles)
 python app.py --benchmark               # time every pipeline stage
-python app.py --forget-taught           # delete poses taught with t
+python app.py --person Alex             # your name in poses you teach (default: git user.name)
 ```
 
 | Key | Action |
@@ -217,9 +217,13 @@ to repeat while held. Add your own profile there and it appears in the `m` cycle
 Press `t`, type a name and press Enter. After a 3-second countdown, hold the pose
 with one hand and move it a little while the app records 30 examples (about 2
 seconds). From then on it's recognised like a built-in gesture: shown on screen,
-smoothed, and saved to the history. Taught poses are kept in
-`data/taught_gestures.npz` (`--forget-taught` deletes them). While you type the
-name, keys are letters, not commands.
+smoothed, and saved to the history. While you type the name, keys are letters, not
+commands.
+
+Each pose is saved as its own file in `taught_poses/`, e.g.
+`taught_poses/pinky_promise.json`, with its name, who taught it, when, and the hand
+landmarks of every example. To remove a pose, delete its file. Teaching an existing
+name again adds more examples to it, which makes it more reliable.
 
 Good poses to try (the rules don't know them, so they show UNKNOWN before teaching):
 
@@ -233,6 +237,26 @@ Taught examples are checked **before** the normal classifier, but only count whe
 hand is very close to them (`TAUGHT_MAX_DISTANCE`), so they don't take over built-in
 gestures. Avoid teaching poses that are close to a built-in one: a half-closed
 "claw", for example, measures almost like a loose fist and would steal fists.
+
+### Add a pose for everyone
+
+Taught pose files are committed like code, so a pose taught on one laptop works on
+every laptop that pulls it:
+
+```powershell
+git pull
+git checkout -b pose/pinky-promise
+python app.py --person <your name>      # press t, type the name, Enter, hold the pose
+git add taught_poses/pinky_promise.json
+git commit -m "Teach PINKY PROMISE"
+git push -u origin pose/pinky-promise    # then open a pull request
+```
+
+When the pull request is merged into `main`, everyone gets the pose with
+`git pull`. GitHub Actions runs `pytest` on the pull request, which checks the new
+file: valid format, a name that isn't a built-in gesture, and that it doesn't take
+over any built-in gesture. Each pose is a separate file, so poses taught by
+different people never conflict.
 
 ## Finger counting
 

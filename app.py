@@ -11,6 +11,7 @@ New poses can be taught live (t); --benchmark times every stage of the pipeline.
 Run:  python app.py            (see --help for options)
 """
 import argparse
+import subprocess
 import sys
 import time
 import uuid
@@ -70,6 +71,16 @@ def save_snapshot(frame) -> Path:
     return path
 
 
+def git_user_name() -> str:
+    """Who is teaching, for taught pose files: --person, else git's user.name, else 'unknown'."""
+    try:
+        name = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True,
+                              cwd=config.BASE_DIR, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        name = ""
+    return name or "unknown"
+
+
 def run(
     camera_index: int = config.CAMERA_INDEX,
     db_path: Path | None = config.DB_PATH,
@@ -77,6 +88,7 @@ def run(
     classifier: str = "rules",
     benchmark: bool = False,
     fullscreen: bool = False,
+    person: str | None = None,
 ) -> int:
     session_id = uuid.uuid4().hex[:8]
     camera = Camera(index=camera_index)
@@ -88,7 +100,7 @@ def run(
         taught = TaughtGestures()
         base = KNNClassifier.load() if classifier == "ml" else RuleBasedClassifier()
         analyzer = GestureAnalyzer(WithTaughtGestures(base, taught))
-        teacher = Teacher(taught)
+        teacher = Teacher(taught, author=person or git_user_name())
         timer = StageTimer()
         motion = MotionAnalyzer()
         recent_moves = []
@@ -105,7 +117,7 @@ def run(
         history_loaded_at = 0.0
         print(f"Running (session {session_id}, {classifier} classifier). Press q in the video window to quit.")
         if taught.names:
-            print(f"Taught poses: {', '.join(taught.names)}")
+            print("Taught poses: " + ", ".join(f"{n} (by {', '.join(taught.taught_by[n])})" for n in taught.names))
         if controller.enabled:
             print(f"Control mode: {controller.profile}. Show the gesture password, then click the window to control.")
 
@@ -128,9 +140,12 @@ def run(
             now = time.monotonic()
             moves = motion.update(hands, frame.shape[1], now)
             timer.lap("motion analyzer")
-            learned = teacher.update(features, now)
+            learned = teacher.update(hands, now)
             if learned:
                 last_action, last_action_at = learned, now
+                if teacher.saved_to is not None:
+                    print(f"{learned}: saved {teacher.saved_to.relative_to(config.BASE_DIR)}. "
+                          "Commit it to share the pose with your team.")
             recent_moves = [m for m in recent_moves + moves if now - m.time < config.MOTION_DISPLAY_SECONDS]
             if moves:
                 last_move = moves[-1]
@@ -253,15 +268,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--benchmark", action="store_true", help="time each pipeline stage; summary saved on exit")
     parser.add_argument("--fullscreen", action="store_true", help="start full screen (w toggles it in the window)")
-    parser.add_argument("--forget-taught", action="store_true", help="delete all poses taught with the t key, then run")
+    parser.add_argument("--person", help="your name, saved in poses you teach (default: git user.name)")
     args = parser.parse_args(argv)
-    if args.forget_taught:
-        TaughtGestures().forget()
-        print("Forgot all taught poses.")
     return run(
         camera_index=args.camera, db_path=None if args.no_history else args.db,
         control=args.control, classifier=args.classifier, benchmark=args.benchmark,
-        fullscreen=args.fullscreen,
+        fullscreen=args.fullscreen, person=args.person,
     )
 
 

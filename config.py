@@ -15,8 +15,9 @@ MODEL_URL = (
 DB_PATH = BASE_DIR / "data" / "gesture_history.db"
 # Trained k-NN classifier (python scripts/train_classifier.py).
 ML_MODEL_PATH = BASE_DIR / "models" / "gesture_knn.npz"
-# Poses taught live with the t key (teach.py).
-TAUGHT_GESTURES_PATH = BASE_DIR / "data" / "taught_gestures.npz"
+# Poses taught live with the t key (teach.py), one file per pose. Committed, so a
+# pose taught on one computer is recognised by everyone who pulls it.
+TAUGHT_POSES_DIR = BASE_DIR / "taught_poses"
 BENCHMARK_REPORT_PATH = BASE_DIR / "reports" / "benchmark.md"
 
 # --- Webcam (camera.py) --------------------------------------------------------
