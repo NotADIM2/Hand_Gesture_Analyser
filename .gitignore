@@ -11,6 +11,7 @@ models/*.part
 
 # Local gesture history, saved pictures and reports made from them
 data/snapshots/
+data/*.npz
 reports/benchmark.md
 reports/session_report*.html
 data/*.db
